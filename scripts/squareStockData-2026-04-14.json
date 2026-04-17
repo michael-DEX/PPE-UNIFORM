@@ -1,0 +1,1432 @@
+[
+  {
+    "name": "24 Hour Bag",
+    "sizeMap": {
+      "Standard": {
+        "qty": 58,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 58
+  },
+  {
+    "name": "3M 60000 Half Face Res...",
+    "sizeMap": {
+      "Medium": {
+        "qty": 100,
+        "lowStockThreshold": 5
+      },
+      "LARGE": {
+        "qty": 99,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 199
+  },
+  {
+    "name": "3M 7093 Hard Shell Par... (Filters)",
+    "sizeMap": {
+      "Standard": {
+        "qty": 322,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 322
+  },
+  {
+    "name": "3M Multiple (Ear Plugs)",
+    "sizeMap": {
+      "Standard": {
+        "qty": 451,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 451
+  },
+  {
+    "name": "5.11 3-IN-1 Parka (Parkas)",
+    "sizeMap": {
+      "XS": {
+        "qty": 10,
+        "lowStockThreshold": 10
+      },
+      "Medium": {
+        "qty": 16,
+        "lowStockThreshold": 5
+      },
+      "Small": {
+        "qty": 13,
+        "lowStockThreshold": 5
+      },
+      "LARGE": {
+        "qty": 20,
+        "lowStockThreshold": 5
+      },
+      "XL": {
+        "qty": 11,
+        "lowStockThreshold": 5
+      },
+      "2XL": {
+        "qty": 0,
+        "lowStockThreshold": 5
+      },
+      "3XL": {
+        "qty": 1,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 71
+  },
+  {
+    "name": "5.11 EMS Pants (Bottoms)",
+    "sizeMap": {
+      "28X30": {
+        "qty": 20,
+        "lowStockThreshold": 5
+      },
+      "28X32": {
+        "qty": 29,
+        "lowStockThreshold": 5
+      },
+      "28X34": {
+        "qty": 11,
+        "lowStockThreshold": 5
+      },
+      "30X30": {
+        "qty": 11,
+        "lowStockThreshold": 5
+      },
+      "30X32": {
+        "qty": 36,
+        "lowStockThreshold": 5
+      },
+      "30X34": {
+        "qty": 21,
+        "lowStockThreshold": 5
+      },
+      "32X30": {
+        "qty": 12,
+        "lowStockThreshold": 10
+      },
+      "32X32": {
+        "qty": 33,
+        "lowStockThreshold": 5
+      },
+      "32X34": {
+        "qty": 15,
+        "lowStockThreshold": 5
+      },
+      "34X30": {
+        "qty": 21,
+        "lowStockThreshold": 5
+      },
+      "34X32": {
+        "qty": 73,
+        "lowStockThreshold": 5
+      },
+      "34X34": {
+        "qty": 23,
+        "lowStockThreshold": 5
+      },
+      "36X30": {
+        "qty": 23,
+        "lowStockThreshold": 5
+      },
+      "36X32": {
+        "qty": 10,
+        "lowStockThreshold": 5
+      },
+      "36X34": {
+        "qty": 71,
+        "lowStockThreshold": 5
+      },
+      "38X30": {
+        "qty": 21,
+        "lowStockThreshold": 5
+      },
+      "38X32": {
+        "qty": 18,
+        "lowStockThreshold": 5
+      },
+      "38X34": {
+        "qty": 11,
+        "lowStockThreshold": 5
+      },
+      "40X30": {
+        "qty": 18,
+        "lowStockThreshold": 5
+      },
+      "40X32": {
+        "qty": 15,
+        "lowStockThreshold": 5
+      },
+      "40X34": {
+        "qty": 13,
+        "lowStockThreshold": 5
+      },
+      "42X30": {
+        "qty": 19,
+        "lowStockThreshold": 5
+      },
+      "42X32": {
+        "qty": 14,
+        "lowStockThreshold": 5
+      },
+      "42X34": {
+        "qty": 12,
+        "lowStockThreshold": 5
+      },
+      "44X30": {
+        "qty": 15,
+        "lowStockThreshold": 5
+      },
+      "44X32": {
+        "qty": 13,
+        "lowStockThreshold": 5
+      },
+      "44X34": {
+        "qty": 15,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 593
+  },
+  {
+    "name": "5.11 Polo (CA-TF2, Long Sleeve)",
+    "sizeMap": {
+      "Medium": {
+        "qty": 28,
+        "lowStockThreshold": 5
+      },
+      "Small": {
+        "qty": 22,
+        "lowStockThreshold": 5
+      },
+      "LARGE": {
+        "qty": 8,
+        "lowStockThreshold": 5
+      },
+      "XL": {
+        "qty": 24,
+        "lowStockThreshold": 5
+      },
+      "2XL": {
+        "qty": 6,
+        "lowStockThreshold": 5
+      },
+      "3XL": {
+        "qty": 8,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 96
+  },
+  {
+    "name": "5.11 Polo (CA-TF2, Short Sleeve)",
+    "sizeMap": {
+      "XS": {
+        "qty": 10,
+        "lowStockThreshold": 5
+      },
+      "Medium": {
+        "qty": 24,
+        "lowStockThreshold": 5
+      },
+      "Small": {
+        "qty": 19,
+        "lowStockThreshold": 5
+      },
+      "LARGE": {
+        "qty": 8,
+        "lowStockThreshold": 5
+      },
+      "XL": {
+        "qty": 0,
+        "lowStockThreshold": 10
+      },
+      "2XL": {
+        "qty": 3,
+        "lowStockThreshold": 5
+      },
+      "3XL": {
+        "qty": 8,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 72
+  },
+  {
+    "name": "5.11 Rush 72 (72-Hour)",
+    "sizeMap": {
+      "Standard": {
+        "qty": 0,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 0
+  },
+  {
+    "name": "5.11 TDU Blouse (Tops)",
+    "sizeMap": {
+      "XS": {
+        "qty": 20,
+        "lowStockThreshold": 5
+      },
+      "Medium": {
+        "qty": 4,
+        "lowStockThreshold": 5
+      },
+      "Small": {
+        "qty": 26,
+        "lowStockThreshold": 5
+      },
+      "LARGE": {
+        "qty": 5,
+        "lowStockThreshold": 5
+      },
+      "2XL": {
+        "qty": 35,
+        "lowStockThreshold": 5
+      },
+      "3XL": {
+        "qty": 31,
+        "lowStockThreshold": 5
+      },
+      "XL Tall": {
+        "qty": 39,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 160
+  },
+  {
+    "name": "American Innotek Daily... (Restroom Kits)",
+    "sizeMap": {
+      "Standard": {
+        "qty": 2499,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 2499
+  },
+  {
+    "name": "American innotek Urina... (Urinal Bags)",
+    "sizeMap": {
+      "Standard": {
+        "qty": 187,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 187
+  },
+  {
+    "name": "Back Patch",
+    "sizeMap": {
+      "Standard": {
+        "qty": 377,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 377
+  },
+  {
+    "name": "Big Agnes Benchmark 0 Sleeping Bag",
+    "sizeMap": {
+      "STANDARD": {
+        "qty": 100,
+        "lowStockThreshold": 10
+      }
+    },
+    "totalStock": 100
+  },
+  {
+    "name": "Big Agnes Boundary Del... (Pillows)",
+    "sizeMap": {
+      "One Size": {
+        "qty": 74,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 74
+  },
+  {
+    "name": "Big Agnes Lost Dog 0 (Standard)",
+    "sizeMap": {
+      "Long": {
+        "qty": 14,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 14
+  },
+  {
+    "name": "Big Agnes Rapide Sleep... (Inflatable)",
+    "sizeMap": {
+      "One Size": {
+        "qty": 101,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 101
+  },
+  {
+    "name": "Big Agnes Superlight Girdle (Stuff Sacks)",
+    "sizeMap": {
+      "One Size": {
+        "qty": 92,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 92
+  },
+  {
+    "name": "Blue Beanie, One Size (Beanies)",
+    "sizeMap": {
+      "One Size": {
+        "qty": 79,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 79
+  },
+  {
+    "name": "Blue Boonie Hat, One Size (Boonie Hats)",
+    "sizeMap": {
+      "One Size": {
+        "qty": 71,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 71
+  },
+  {
+    "name": "CA-TF2 Rocker Patch wi...",
+    "sizeMap": {
+      "Standard": {
+        "qty": 250,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 250
+  },
+  {
+    "name": "CA-TF2, Long Sleeve",
+    "sizeMap": {
+      "XS": {
+        "qty": 0,
+        "lowStockThreshold": 5
+      },
+      "Medium": {
+        "qty": 74,
+        "lowStockThreshold": 5
+      },
+      "Small": {
+        "qty": 18,
+        "lowStockThreshold": 5
+      },
+      "LARGE": {
+        "qty": 96,
+        "lowStockThreshold": 10
+      },
+      "XL": {
+        "qty": 102,
+        "lowStockThreshold": 5
+      },
+      "2XL": {
+        "qty": 128,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 418
+  },
+  {
+    "name": "CA-TF2, Short Sleeve T shirt",
+    "sizeMap": {
+      "XS": {
+        "qty": 0,
+        "lowStockThreshold": 5
+      },
+      "Medium": {
+        "qty": 45,
+        "lowStockThreshold": 5
+      },
+      "Small": {
+        "qty": 38,
+        "lowStockThreshold": 10
+      },
+      "LARGE": {
+        "qty": 31,
+        "lowStockThreshold": 5
+      },
+      "XL": {
+        "qty": 72,
+        "lowStockThreshold": 5
+      },
+      "2XL": {
+        "qty": 75,
+        "lowStockThreshold": 5
+      },
+      "3XL": {
+        "qty": 0,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 261
+  },
+  {
+    "name": "CALOES Patch with Velcro",
+    "sizeMap": {
+      "Standard": {
+        "qty": 288,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 288
+  },
+  {
+    "name": "CMC Cobra-D Belt (Accessories)",
+    "sizeMap": {
+      "One Size": {
+        "qty": 25,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 25
+  },
+  {
+    "name": "Cold Weather Bag",
+    "sizeMap": {
+      "Standard": {
+        "qty": 130,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 130
+  },
+  {
+    "name": "Coretex SunX30 (Sunscreen)",
+    "sizeMap": {
+      "Standard": {
+        "qty": 44,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 44
+  },
+  {
+    "name": "Desert Rescue Research... (Technical Rescue)",
+    "sizeMap": {
+      "Standard": {
+        "qty": 168,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 168
+  },
+  {
+    "name": "Dragon Fire First-Due (Leather)",
+    "sizeMap": {
+      "Medium": {
+        "qty": 39,
+        "lowStockThreshold": 5
+      },
+      "Small": {
+        "qty": 0,
+        "lowStockThreshold": 5
+      },
+      "LARGE": {
+        "qty": 49,
+        "lowStockThreshold": 5
+      },
+      "XL": {
+        "qty": 67,
+        "lowStockThreshold": 5
+      },
+      "2XL": {
+        "qty": 19,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 174
+  },
+  {
+    "name": "ESS Profile Pivot (Goggles)",
+    "sizeMap": {
+      "Standard": {
+        "qty": 82,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 82
+  },
+  {
+    "name": "FEMA Patch with Velcro",
+    "sizeMap": {
+      "Standard": {
+        "qty": 126,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 126
+  },
+  {
+    "name": "FlexFit 110 nu (Ball Caps)",
+    "sizeMap": {
+      "One Size": {
+        "qty": 89,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 89
+  },
+  {
+    "name": "Flexfit",
+    "sizeMap": {
+      "Blue, LG-XL": {
+        "qty": 50,
+        "lowStockThreshold": 10
+      },
+      "Blue, SM-MD": {
+        "qty": 20,
+        "lowStockThreshold": 10
+      },
+      "Black, LG-XL": {
+        "qty": 19,
+        "lowStockThreshold": 10
+      },
+      "Black, SM-MD": {
+        "qty": 10,
+        "lowStockThreshold": 10
+      }
+    },
+    "totalStock": 99
+  },
+  {
+    "name": "Florence Marine X F1 C... (Shorts)",
+    "sizeMap": {
+      "30": {
+        "qty": 19,
+        "lowStockThreshold": 5
+      },
+      "32": {
+        "qty": 30,
+        "lowStockThreshold": 5
+      },
+      "34": {
+        "qty": 32,
+        "lowStockThreshold": 5
+      },
+      "36": {
+        "qty": 31,
+        "lowStockThreshold": 5
+      },
+      "38": {
+        "qty": 21,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 133
+  },
+  {
+    "name": "Gerber MP-600 (Standard)",
+    "sizeMap": {
+      "Standard": {
+        "qty": 37,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 37
+  },
+  {
+    "name": "Globe Technical Rescue Boot",
+    "sizeMap": {
+      "9 M": {
+        "qty": 3,
+        "lowStockThreshold": 5
+      },
+      "9.5 M": {
+        "qty": 3,
+        "lowStockThreshold": 5
+      },
+      "10 M": {
+        "qty": 3,
+        "lowStockThreshold": 5
+      },
+      "10.5 M": {
+        "qty": 5,
+        "lowStockThreshold": 5
+      },
+      "11 M": {
+        "qty": 9,
+        "lowStockThreshold": 5
+      },
+      "11.5 M": {
+        "qty": 3,
+        "lowStockThreshold": 5
+      },
+      "12 M": {
+        "qty": 7,
+        "lowStockThreshold": 5
+      },
+      "12.5 M": {
+        "qty": 5,
+        "lowStockThreshold": 5
+      },
+      "6.5 W": {
+        "qty": 1,
+        "lowStockThreshold": 5
+      },
+      "8 W": {
+        "qty": 1,
+        "lowStockThreshold": 5
+      },
+      "8.5 W": {
+        "qty": 1,
+        "lowStockThreshold": 5
+      },
+      "9 W": {
+        "qty": 3,
+        "lowStockThreshold": 5
+      },
+      "9.5 W": {
+        "qty": 1,
+        "lowStockThreshold": 5
+      },
+      "10 W": {
+        "qty": 2,
+        "lowStockThreshold": 5
+      },
+      "10.5 W": {
+        "qty": 5,
+        "lowStockThreshold": 5
+      },
+      "11 W": {
+        "qty": 2,
+        "lowStockThreshold": 5
+      },
+      "11.5 W": {
+        "qty": 8,
+        "lowStockThreshold": 5
+      },
+      "12 W": {
+        "qty": 6,
+        "lowStockThreshold": 5
+      },
+      "12.5 W": {
+        "qty": 5,
+        "lowStockThreshold": 5
+      },
+      "7 M": {
+        "qty": 1,
+        "lowStockThreshold": 10
+      },
+      "8 M Womens": {
+        "qty": 1,
+        "lowStockThreshold": 10
+      },
+      "9.5 Narrow": {
+        "qty": 2,
+        "lowStockThreshold": 10
+      },
+      "13 M": {
+        "qty": 1,
+        "lowStockThreshold": 10
+      }
+    },
+    "totalStock": 78
+  },
+  {
+    "name": "HippyTree Design Co. U... (Shorts)",
+    "sizeMap": {
+      "40": {
+        "qty": 13,
+        "lowStockThreshold": 5
+      },
+      "42": {
+        "qty": 25,
+        "lowStockThreshold": 5
+      },
+      "44": {
+        "qty": 15,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 53
+  },
+  {
+    "name": "LACoFD FOG",
+    "sizeMap": {
+      "Standard": {
+        "qty": 26,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 26
+  },
+  {
+    "name": "Mechanix Coldwork M-PACT (Insulated)",
+    "sizeMap": {
+      "Medium": {
+        "qty": 36,
+        "lowStockThreshold": 5
+      },
+      "Small": {
+        "qty": 0,
+        "lowStockThreshold": 5
+      },
+      "LARGE": {
+        "qty": 93,
+        "lowStockThreshold": 5
+      },
+      "XL": {
+        "qty": 87,
+        "lowStockThreshold": 5
+      },
+      "2XL": {
+        "qty": 39,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 255
+  },
+  {
+    "name": "Mechanix Coldwork Peak (Insulated)",
+    "sizeMap": {
+      "Medium": {
+        "qty": 18,
+        "lowStockThreshold": 5
+      },
+      "Small": {
+        "qty": 20,
+        "lowStockThreshold": 5
+      },
+      "LARGE": {
+        "qty": 48,
+        "lowStockThreshold": 5
+      },
+      "XL": {
+        "qty": 17,
+        "lowStockThreshold": 5
+      },
+      "2XL": {
+        "qty": 18,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 121
+  },
+  {
+    "name": "Medline Ready Bath (Wipes)",
+    "sizeMap": {
+      "Standard": {
+        "qty": 116,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 116
+  },
+  {
+    "name": "NRS Water Rescue Helme...",
+    "sizeMap": {
+      "LARGE": {
+        "qty": 0,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 0
+  },
+  {
+    "name": "Neck Gaiter",
+    "sizeMap": {
+      "STANDARD": {
+        "qty": 249,
+        "lowStockThreshold": 10
+      }
+    },
+    "totalStock": 249
+  },
+  {
+    "name": "North American Rescue ... (IFAK)",
+    "sizeMap": {
+      "Standard": {
+        "qty": 151,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 151
+  },
+  {
+    "name": "OR Rocky Mountain High (Gaiters)",
+    "sizeMap": {
+      "Medium": {
+        "qty": 46,
+        "lowStockThreshold": 5
+      },
+      "Small": {
+        "qty": 21,
+        "lowStockThreshold": 5
+      },
+      "LARGE": {
+        "qty": 43,
+        "lowStockThreshold": 5
+      },
+      "XL": {
+        "qty": 61,
+        "lowStockThreshold": 10
+      },
+      "2XL": {
+        "qty": 1,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 172
+  },
+  {
+    "name": "Orange USAR Patch with...",
+    "sizeMap": {
+      "Standard": {
+        "qty": 4,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 4
+  },
+  {
+    "name": "PICARIDIN INSECT REPELLENT 3 OZ SPRAY",
+    "sizeMap": {
+      "Standard": {
+        "qty": 200,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 200
+  },
+  {
+    "name": "Pelican 3415 (Right Angle)",
+    "sizeMap": {
+      "Standard": {
+        "qty": 133,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 133
+  },
+  {
+    "name": "Princeton Tec VIZZ II (Headlamps)",
+    "sizeMap": {
+      "Standard": {
+        "qty": 24,
+        "lowStockThreshold": 10
+      }
+    },
+    "totalStock": 24
+  },
+  {
+    "name": "Rocky Alpha Force (Insulated)",
+    "sizeMap": {
+      "9": {
+        "qty": 2,
+        "lowStockThreshold": 5
+      },
+      "9.5": {
+        "qty": 7,
+        "lowStockThreshold": 10
+      },
+      "10": {
+        "qty": 7,
+        "lowStockThreshold": 10
+      },
+      "10.5": {
+        "qty": 11,
+        "lowStockThreshold": 5
+      },
+      "11": {
+        "qty": 10,
+        "lowStockThreshold": 10
+      },
+      "11.5": {
+        "qty": 10,
+        "lowStockThreshold": 10
+      },
+      "12": {
+        "qty": 11,
+        "lowStockThreshold": 5
+      },
+      "13": {
+        "qty": 8,
+        "lowStockThreshold": 10
+      }
+    },
+    "totalStock": 66
+  },
+  {
+    "name": "Roller Bag",
+    "sizeMap": {
+      "Standard": {
+        "qty": 57,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 57
+  },
+  {
+    "name": "SOL Escape Bivy Orange (Bivvy)",
+    "sizeMap": {
+      "One Size": {
+        "qty": 29,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 29
+  },
+  {
+    "name": "Scott 40mm adapter",
+    "sizeMap": {
+      "STANDARD": {
+        "qty": 44,
+        "lowStockThreshold": 10
+      }
+    },
+    "totalStock": 44
+  },
+  {
+    "name": "Scott AV3000 (Masks)",
+    "sizeMap": {
+      "Medium": {
+        "qty": 15,
+        "lowStockThreshold": 5
+      },
+      "Small": {
+        "qty": 10,
+        "lowStockThreshold": 10
+      },
+      "LARGE": {
+        "qty": 10,
+        "lowStockThreshold": 10
+      }
+    },
+    "totalStock": 35
+  },
+  {
+    "name": "Scott Bayonet Adapter AV-632 (Adapters)",
+    "sizeMap": {
+      "Standard": {
+        "qty": 43,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 43
+  },
+  {
+    "name": "Scott Mask Bag",
+    "sizeMap": {
+      "Standard": {
+        "qty": 63,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 63
+  },
+  {
+    "name": "Solar Shower Shower",
+    "sizeMap": {
+      "Standard": {
+        "qty": 7,
+        "lowStockThreshold": 10
+      }
+    },
+    "totalStock": 7
+  },
+  {
+    "name": "TS BDU Blouse (Tops)",
+    "sizeMap": {
+      "2XL Regular": {
+        "qty": 68,
+        "lowStockThreshold": 5
+      },
+      "Large Regular": {
+        "qty": 51,
+        "lowStockThreshold": 10
+      },
+      "Small Regular": {
+        "qty": 9,
+        "lowStockThreshold": 10
+      },
+      "XL Long": {
+        "qty": 40,
+        "lowStockThreshold": 10
+      },
+      "XL Regular": {
+        "qty": 156,
+        "lowStockThreshold": 10
+      },
+      "2XL Long": {
+        "qty": 66,
+        "lowStockThreshold": 5
+      },
+      "3XL Long": {
+        "qty": 6,
+        "lowStockThreshold": 10
+      },
+      "XL Short": {
+        "qty": 14,
+        "lowStockThreshold": 10
+      },
+      "Small Short": {
+        "qty": 0,
+        "lowStockThreshold": 10
+      },
+      "Medium Long": {
+        "qty": 40,
+        "lowStockThreshold": 10
+      },
+      "Medium Regular": {
+        "qty": 46,
+        "lowStockThreshold": 10
+      },
+      "Medium Short": {
+        "qty": 0,
+        "lowStockThreshold": 10
+      },
+      "Large Short": {
+        "qty": 9,
+        "lowStockThreshold": 10
+      },
+      "Large Long": {
+        "qty": 8,
+        "lowStockThreshold": 10
+      },
+      "Small Long": {
+        "qty": 0,
+        "lowStockThreshold": 10
+      }
+    },
+    "totalStock": 513
+  },
+  {
+    "name": "TS BDU Pants (Bottoms)",
+    "sizeMap": {
+      "2XL Regular": {
+        "qty": 41,
+        "lowStockThreshold": 10
+      },
+      "Large Regular": {
+        "qty": 24,
+        "lowStockThreshold": 10
+      },
+      "Small Regular": {
+        "qty": 12,
+        "lowStockThreshold": 10
+      },
+      "XL Long": {
+        "qty": 47,
+        "lowStockThreshold": 10
+      },
+      "XL Regular": {
+        "qty": 61,
+        "lowStockThreshold": 10
+      },
+      "2XL Long": {
+        "qty": 29,
+        "lowStockThreshold": 10
+      },
+      "Small Short": {
+        "qty": 0,
+        "lowStockThreshold": 10
+      },
+      "Medium Long": {
+        "qty": 14,
+        "lowStockThreshold": 10
+      },
+      "Medium Regular": {
+        "qty": 24,
+        "lowStockThreshold": 10
+      },
+      "Medium Short": {
+        "qty": 8,
+        "lowStockThreshold": 10
+      },
+      "Large Short": {
+        "qty": 27,
+        "lowStockThreshold": 10
+      },
+      "Large Long": {
+        "qty": 35,
+        "lowStockThreshold": 10
+      },
+      "Small Long": {
+        "qty": 0,
+        "lowStockThreshold": 10
+      },
+      "2XL Short": {
+        "qty": 20,
+        "lowStockThreshold": 10
+      }
+    },
+    "totalStock": 342
+  },
+  {
+    "name": "TS BDU Shorts (Bottoms)",
+    "sizeMap": {
+      "Medium": {
+        "qty": 15,
+        "lowStockThreshold": 5
+      },
+      "Small": {
+        "qty": 4,
+        "lowStockThreshold": 5
+      },
+      "LARGE": {
+        "qty": 9,
+        "lowStockThreshold": 10
+      },
+      "XL": {
+        "qty": 27,
+        "lowStockThreshold": 5
+      },
+      "2XL": {
+        "qty": 19,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 74
+  },
+  {
+    "name": "TS Gen-III ECWS Level 1 (Bottoms)",
+    "sizeMap": {
+      "Medium": {
+        "qty": 50,
+        "lowStockThreshold": 5
+      },
+      "Small": {
+        "qty": 29,
+        "lowStockThreshold": 5
+      },
+      "LARGE": {
+        "qty": 50,
+        "lowStockThreshold": 5
+      },
+      "XL": {
+        "qty": 48,
+        "lowStockThreshold": 5
+      },
+      "2XL": {
+        "qty": 90,
+        "lowStockThreshold": 5
+      },
+      "3XL": {
+        "qty": 29,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 296
+  },
+  {
+    "name": "TS Gen-III ECWS Level 1 (Tops)",
+    "sizeMap": {
+      "Medium": {
+        "qty": 50,
+        "lowStockThreshold": 5
+      },
+      "Small": {
+        "qty": 29,
+        "lowStockThreshold": 5
+      },
+      "LARGE": {
+        "qty": 50,
+        "lowStockThreshold": 5
+      },
+      "XL": {
+        "qty": 50,
+        "lowStockThreshold": 5
+      },
+      "2XL": {
+        "qty": 43,
+        "lowStockThreshold": 5
+      },
+      "3XL": {
+        "qty": 29,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 251
+  },
+  {
+    "name": "TS Rain Shell Pant (Rain Gear)",
+    "sizeMap": {
+      "2XL Regular": {
+        "qty": 13,
+        "lowStockThreshold": 5
+      },
+      "Medium Regular": {
+        "qty": 16,
+        "lowStockThreshold": 10
+      },
+      "Large Regular": {
+        "qty": 30,
+        "lowStockThreshold": 5
+      },
+      "Small Regular": {
+        "qty": 9,
+        "lowStockThreshold": 10
+      },
+      "XL Regular": {
+        "qty": 24,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 92
+  },
+  {
+    "name": "TW MAGPUL MOE 5-Slot M... (Rail Adapters)",
+    "sizeMap": {
+      "One Size": {
+        "qty": 9,
+        "lowStockThreshold": 10
+      }
+    },
+    "totalStock": 9
+  },
+  {
+    "name": "TW SAR Comfort Pad Rep... (Comfort Pads)",
+    "sizeMap": {
+      "One Size": {
+        "qty": 28,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 28
+  },
+  {
+    "name": "TW SAR Replacement Ven... (Vent Covers)",
+    "sizeMap": {
+      "One Size": {
+        "qty": 15,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 15
+  },
+  {
+    "name": "Team Wendy EXFIL SAR Helmet",
+    "sizeMap": {
+      "Blue": {
+        "qty": 7,
+        "lowStockThreshold": 5
+      },
+      "Orange": {
+        "qty": 11,
+        "lowStockThreshold": 5
+      },
+      "White": {
+        "qty": 7,
+        "lowStockThreshold": 10
+      },
+      "Yellow": {
+        "qty": 23,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 48
+  },
+  {
+    "name": "US Flag Patch with Velcro",
+    "sizeMap": {
+      "Standard": {
+        "qty": 473,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 473
+  },
+  {
+    "name": "USA-2 Rocker Patch wit...",
+    "sizeMap": {
+      "Standard": {
+        "qty": 2226,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 2226
+  },
+  {
+    "name": "USACE US&R Shoring Operations Guide",
+    "sizeMap": {
+      "Standard": {
+        "qty": 28,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 28
+  },
+  {
+    "name": "USACE US&R Structures Specialist Field Operations Guide",
+    "sizeMap": {
+      "Standard": {
+        "qty": 274,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 274
+  },
+  {
+    "name": "Uvex S3200X (Safety Glasses)",
+    "sizeMap": {
+      "Standard": {
+        "qty": 200,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 200
+  },
+  {
+    "name": "Water Shirt",
+    "sizeMap": {
+      "XS": {
+        "qty": 0,
+        "lowStockThreshold": 5
+      },
+      "Medium": {
+        "qty": 35,
+        "lowStockThreshold": 5
+      },
+      "Small": {
+        "qty": 49,
+        "lowStockThreshold": 5
+      },
+      "LARGE": {
+        "qty": 36,
+        "lowStockThreshold": 5
+      },
+      "XL": {
+        "qty": 22,
+        "lowStockThreshold": 5
+      },
+      "2XL": {
+        "qty": 48,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 190
+  },
+  {
+    "name": "Web Gear",
+    "sizeMap": {
+      "Standard": {
+        "qty": 64,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 64
+  },
+  {
+    "name": "Web Gear Bag",
+    "sizeMap": {
+      "Standard": {
+        "qty": 54,
+        "lowStockThreshold": 5
+      }
+    },
+    "totalStock": 54
+  }
+]

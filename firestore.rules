@@ -1,0 +1,85 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isLoggedIn() {
+      return request.auth != null;
+    }
+
+    function isLogistics() {
+      return isLoggedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isActive == true ||
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == "active");
+    }
+
+    function isManager() {
+      return isLogistics() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "logistics_manager" ||
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "manager" ||
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin");
+    }
+
+    function isAdmin() {
+      return isLogistics() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "logistics_manager" ||
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin");
+    }
+
+    match /items/{itemId} {
+      allow read: if isLoggedIn();
+      allow write: if isLogistics();
+    }
+
+    match /personnel/{personnelId} {
+      allow read: if isLogistics() || request.auth.uid == resource.data.authUid;
+      allow create: if isLogistics();
+      allow update: if isLogistics();
+      allow delete: if isManager();
+    }
+
+    match /transactions/{txId} {
+      allow read: if isLogistics() || request.auth.uid == resource.data.personnelAuthUid;
+      allow create: if isLogistics();
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    match /requests/{reqId} {
+      allow read: if isLogistics() || request.auth.uid == resource.data.personnelAuthUid;
+      allow create: if isLoggedIn();
+      allow update: if isLogistics();
+      allow delete: if false;
+    }
+
+    match /backordered/{boId} {
+      allow read, write: if isLogistics();
+    }
+
+    match /audit_log/{eventId} {
+      allow read: if isLogistics();
+      allow write: if false;
+    }
+
+    match /order_lists/{listId} {
+      allow read, write: if isLogistics();
+    }
+
+    match /onboarding_drafts/{draftId} {
+      allow read, write: if isLogistics();
+    }
+
+    match /users/{userId} {
+      allow read: if isLogistics();
+      allow write: if isAdmin();
+    }
+
+    match /user_invites/{inviteId} {
+      // Admins can create invites (the Cloud Function trigger fires on create).
+      // Admins can read to watch for completion status.
+      // The function itself updates the doc using its own service account (bypasses rules).
+      allow read, create: if isAdmin();
+      allow update, delete: if false;
+    }
+  }
+}

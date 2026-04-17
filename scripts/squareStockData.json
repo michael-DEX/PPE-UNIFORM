@@ -1,0 +1,1242 @@
+{
+  "24 Hour Pack (35 lbs. MAX)": {
+    "sizeMap": {
+      "STANDARD": {
+        "qty": 58
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "55L tactical backpack for 72-hour missions. Features CCW pocket, laptop sleeve, MOLLE webbing, and multiple compartments.",
+    "squareCategory": "Packs & Bags > Backpacks > 24-Hour",
+    "manufacturer": "Wolf Pack Gear",
+    "model": "24 Hour Pack"
+  },
+  "Respirator Face Piece": {
+    "sizeMap": {
+      "M": {
+        "qty": 115
+      },
+      "L": {
+        "qty": 109
+      },
+      "S": {
+        "qty": 10
+      }
+    },
+    "lowStockThreshold": 10,
+    "description": "3M 6000 Series half-face respirator with dual cartridge design for respiratory protection.",
+    "squareCategory": "Safety & Protection > Respirators > Half Face",
+    "manufacturer": "Scott",
+    "model": "AV3000"
+  },
+  "Respirator Cartridge Set": {
+    "sizeMap": {
+      "STANDARD": {
+        "qty": 322
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "3M P100 particulate filter cartridges for half/full face respirators. 99.97% filtration efficiency.",
+    "squareCategory": "Safety & Protection > Respirators > Filters",
+    "manufacturer": "3M",
+    "model": "7093 Hard Shell Particulate"
+  },
+  "Ear Plugs": {
+    "sizeMap": {
+      "STANDARD": {
+        "qty": 451
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "3M safety products - various PPE items including respirators, hearing protection, or eyewear.",
+    "squareCategory": "Safety & Protection > Hearing Protection > Ear Plugs",
+    "manufacturer": "3M",
+    "model": "Multiple"
+  },
+  "3-in-1 Parka": {
+    "sizeMap": {
+      "XS": {
+        "qty": 10
+      },
+      "M": {
+        "qty": 16
+      },
+      "S": {
+        "qty": 13
+      },
+      "L": {
+        "qty": 20
+      },
+      "XL": {
+        "qty": 11
+      },
+      "2XL": {
+        "qty": 0
+      },
+      "3XL": {
+        "qty": 1
+      }
+    },
+    "lowStockThreshold": 10,
+    "description": "Versatile 3-in-1 parka system with removable inner jacket, waterproof outer shell, and multiple pockets for all-weather protection.",
+    "squareCategory": "Clothing > Outerwear, Clothing > Outerwear > Parkas",
+    "manufacturer": "5.11",
+    "model": "3-IN-1 Parka"
+  },
+  "BDU Pants (5.11)": {
+    "sizeMap": {
+      "28X30": {
+        "qty": 20
+      },
+      "28X32": {
+        "qty": 29
+      },
+      "28X34": {
+        "qty": 11
+      },
+      "30X30": {
+        "qty": 11
+      },
+      "30X32": {
+        "qty": 36
+      },
+      "30X34": {
+        "qty": 21
+      },
+      "32X30": {
+        "qty": 12
+      },
+      "32X32": {
+        "qty": 33
+      },
+      "32X34": {
+        "qty": 15
+      },
+      "34X30": {
+        "qty": 21
+      },
+      "34X32": {
+        "qty": 73
+      },
+      "34X34": {
+        "qty": 23
+      },
+      "36X30": {
+        "qty": 23
+      },
+      "36X32": {
+        "qty": 10
+      },
+      "36X34": {
+        "qty": 71
+      },
+      "38X30": {
+        "qty": 21
+      },
+      "38X32": {
+        "qty": 18
+      },
+      "38X34": {
+        "qty": 11
+      },
+      "40X30": {
+        "qty": 18
+      },
+      "40X32": {
+        "qty": 15
+      },
+      "40X34": {
+        "qty": 13
+      },
+      "42X30": {
+        "qty": 19
+      },
+      "42X32": {
+        "qty": 14
+      },
+      "42X34": {
+        "qty": 12
+      },
+      "44X30": {
+        "qty": 15
+      },
+      "44X32": {
+        "qty": 13
+      },
+      "44X34": {
+        "qty": 15
+      }
+    },
+    "lowStockThreshold": 10,
+    "description": "Flex-Tac ripstop EMS pants with gusseted construction, 19 pockets, kneepad-ready design, and Teflon finish for stain resistance.",
+    "squareCategory": "Clothing > BDUs > Bottoms",
+    "manufacturer": "5.11",
+    "model": "EMS Pants"
+  },
+  "CA-TF2 Polo": {
+    "sizeMap": {
+      "M": {
+        "qty": 52
+      },
+      "S": {
+        "qty": 41
+      },
+      "L": {
+        "qty": 16
+      },
+      "XL": {
+        "qty": 24
+      },
+      "2XL": {
+        "qty": 9
+      },
+      "3XL": {
+        "qty": 16
+      },
+      "XS": {
+        "qty": 10
+      }
+    },
+    "lowStockThreshold": 10,
+    "description": "5.11 Performance polo or shirt with moisture-wicking fabric, antimicrobial treatment, and professional appearance.",
+    "squareCategory": "Clothing > Polos - CA-TF2 > Long Sleeve",
+    "manufacturer": "5.11",
+    "model": "CA-TF2 Polo"
+  },
+  "BDU Top (5.11)": {
+    "sizeMap": {
+      "XS": {
+        "qty": 20
+      },
+      "M": {
+        "qty": 4
+      },
+      "S": {
+        "qty": 26
+      },
+      "L": {
+        "qty": 5
+      },
+      "2XL": {
+        "qty": 35
+      },
+      "3XL": {
+        "qty": 31
+      },
+      "XL TALL": {
+        "qty": 39
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "Tactical duty uniform shirt with Flex-Tac fabric, articulated elbows, mandarin collar, full-zip front, and integrated badge/patch platforms.",
+    "squareCategory": "Clothing > BDUs > Tops",
+    "manufacturer": "5.11",
+    "model": "TDU Blouse"
+  },
+  "Brief Relief Kit": {
+    "sizeMap": {
+      "STANDARD": {
+        "qty": 2499
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "Portable waste disposal kit with 2 liquid and 1 solid waste bags for field sanitation.",
+    "squareCategory": "Personal Care > Sanitation > Restroom Kits",
+    "manufacturer": "American Innotek",
+    "model": "Daily Restroom Kit"
+  },
+  "Brief Relief Urinal Bag": {
+    "sizeMap": {
+      "STANDARD": {
+        "qty": 187
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "Disposable urinal bag for field use. Self-contained with absorbent gel and odor control.",
+    "squareCategory": "Personal Care > Sanitation > Urinal Bags",
+    "manufacturer": "American Innotek",
+    "model": "Urinal Bag"
+  },
+  "CA-TF2 Large Back Patch": {
+    "sizeMap": {
+      "STANDARD": {
+        "qty": 377
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "Los Angeles County Fire Department USAR back panel patch for uniform identification.",
+    "squareCategory": "Patches > Unit",
+    "manufacturer": "LACoFD",
+    "model": "USAR BDU Back Patch"
+  },
+  "Sleeping Bag": {
+    "sizeMap": {
+      "ONE SIZE": {
+        "qty": 100
+      },
+      "LONG": {
+        "qty": 14
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "The Benchmark 0 Sleeping Bag features an ultralight design with advanced insulation for reliable warmth in cold conditions. Its compact and portable construction ensures easy packing for outdoor adventures.",
+    "squareCategory": "Sleep System > Sleeping Bags, Sleep System > Sleeping Bags > Standard",
+    "manufacturer": "Big Agnes",
+    "model": "Benchmark 0"
+  },
+  "Pillow": {
+    "sizeMap": {
+      "ONE SIZE": {
+        "qty": 74
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "Lightweight compressible camp pillow with soft brushed fabric cover for field sleeping comfort.",
+    "squareCategory": "Sleep System > Accessories > Pillows",
+    "manufacturer": "Big Agnes",
+    "model": "Boundary Deluxe Pillow"
+  },
+  "Sleeping Pad": {
+    "sizeMap": {
+      "ONE SIZE": {
+        "qty": 101
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "Lightweight inflatable sleeping pad with insulation for cold-ground camping.",
+    "squareCategory": "Sleep System > Sleeping Pads > Inflatable",
+    "manufacturer": "Big Agnes",
+    "model": "Rapide SL Sleeping Pad"
+  },
+  "Sleeping Bag Girdle": {
+    "sizeMap": {
+      "ONE SIZE": {
+        "qty": 92
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "Big Agnes girdle compression strap system for securing sleeping pad to sleeping bag.",
+    "squareCategory": "Sleep System > Accessories > Stuff Sacks",
+    "manufacturer": "Big Agnes",
+    "model": "Superlight Girdle"
+  },
+  "Beanie": {
+    "sizeMap": {
+      "ONE SIZE": {
+        "qty": 79
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "One-size blue knit beanie for cold weather head protection.",
+    "squareCategory": "Headwear > Hats > Beanies",
+    "model": "Blue Beanie"
+  },
+  "Boonie Hat": {
+    "sizeMap": {
+      "ONE SIZE": {
+        "qty": 71
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "Wide-brim boonie hat in blue for sun protection during outdoor operations.",
+    "squareCategory": "Headwear > Hats > Boonie Hats",
+    "model": "Blue Boonie Hat"
+  },
+  "CA-TF2 Rocker": {
+    "sizeMap": {
+      "STANDARD": {
+        "qty": 250
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "California Task Force 2 identification rocker patch with Velcro backing.",
+    "squareCategory": "Patches > Rockers",
+    "model": "CA-TF2 Rocker Patch with Velcro"
+  },
+  "CA-TF2 Long Sleeve": {
+    "sizeMap": {
+      "XS": {
+        "qty": 0
+      },
+      "M": {
+        "qty": 74
+      },
+      "S": {
+        "qty": 18
+      },
+      "L": {
+        "qty": 96
+      },
+      "XL": {
+        "qty": 102
+      },
+      "2XL": {
+        "qty": 128
+      }
+    },
+    "lowStockThreshold": 10,
+    "description": "Durable 50/50 polyester/cotton blend t-shirt with moisture-wicking properties and tag-free comfort.",
+    "squareCategory": "Clothing > T-Shirts - CA-TF2 > Long Sleeve",
+    "model": "CA-TF2 Long Sleeve"
+  },
+  "CA-TF2 Short Sleeve": {
+    "sizeMap": {
+      "XS": {
+        "qty": 0
+      },
+      "M": {
+        "qty": 45
+      },
+      "S": {
+        "qty": 38
+      },
+      "L": {
+        "qty": 31
+      },
+      "XL": {
+        "qty": 72
+      },
+      "2XL": {
+        "qty": 75
+      },
+      "3XL": {
+        "qty": 0
+      }
+    },
+    "lowStockThreshold": 10,
+    "description": "Durable 50/50 polyester/cotton blend t-shirt with moisture-wicking properties and tag-free comfort.",
+    "squareCategory": "Clothing > T-Shirts - CA-TF2 > Short Sleeve",
+    "model": "CA-TF2 Short Sleeve T-shirt"
+  },
+  "CAL OES Patch": {
+    "sizeMap": {
+      "STANDARD": {
+        "qty": 288
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "California Office of Emergency Services (Cal OES) patch with hook-and-loop backing.",
+    "squareCategory": "Patches > Unit",
+    "model": "CALOES Patch with Velcro"
+  },
+  "Belt": {
+    "sizeMap": {
+      "ONE SIZE": {
+        "qty": 25
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "NFPA-certified uniform belt for emergency rappel/belay. Features AustriAlpin COBRA buckle with D-ring. Standard issue for firefighters, SAR, and SWAT.",
+    "squareCategory": "Clothing > BDUs > Accessories",
+    "manufacturer": "CMC",
+    "model": "Cobra-D Belt"
+  },
+  "Cold Weather Bag (40 lbs. MAX)": {
+    "sizeMap": {
+      "STANDARD": {
+        "qty": 130
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "Cold Weather Red Bag",
+    "squareCategory": "Packs & Bags > Gear Bags > Cold Weather",
+    "manufacturer": "US Forest Service",
+    "model": "Cold Weather Bag"
+  },
+  "Sunscreen": {
+    "sizeMap": {
+      "STANDARD": {
+        "qty": 44
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "SPF 30 sunscreen in convenient packets for skin protection during outdoor operations.",
+    "squareCategory": "Personal Care > Sun Protection",
+    "manufacturer": "Coretex",
+    "model": "SunX30"
+  },
+  "Tech Rescue Guide": {
+    "sizeMap": {
+      "STANDARD": {
+        "qty": 168
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "Desert Rescue Research reference guide for technical rescue operations.",
+    "manufacturer": "Desert Rescue Research",
+    "model": "Technical Rescue Guide"
+  },
+  "Work Gloves": {
+    "sizeMap": {
+      "M": {
+        "qty": 39
+      },
+      "S": {
+        "qty": 0
+      },
+      "L": {
+        "qty": 49
+      },
+      "XL": {
+        "qty": 67
+      },
+      "2XL": {
+        "qty": 19
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "Dragon Fire First-Due structural firefighting gloves with Kevlar shell, moisture barrier, and thermal protection.",
+    "squareCategory": "Gloves > Work > Leather",
+    "manufacturer": "Dragon Fire",
+    "model": "First-Due (Leather)"
+  },
+  "Goggles": {
+    "sizeMap": {
+      "STANDARD": {
+        "qty": 82
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "Helmet-mounted goggle system for tactical operators. Attaches to ARC rail systems for rapid donning/doffing with ballistic protection.",
+    "squareCategory": "Head Protection > Helmet Accessories > Goggles",
+    "manufacturer": "ESS",
+    "model": "Profile Pivot"
+  },
+  "FEMA Shoulder Patch": {
+    "sizeMap": {
+      "STANDARD": {
+        "qty": 126
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "Federal Emergency Management Agency identification patch with Velcro backing.",
+    "squareCategory": "Patches > Unit",
+    "model": "FEMA Patch with Velcro"
+  },
+  "USAR Ball Cap": {
+    "sizeMap": {
+      "ONE SIZE": {
+        "qty": 89
+      },
+      "BLUE, LG-XL": {
+        "qty": 50
+      },
+      "BLUE, SM-MD": {
+        "qty": 20
+      },
+      "BLACK, LG-XL": {
+        "qty": 19
+      },
+      "BLACK, SM-MD": {
+        "qty": 10
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "FlexFit 110 structured snapback cap with moisture-wicking sweatband and performance fabric.",
+    "squareCategory": "Headwear > Hats > Ball Caps",
+    "manufacturer": "FlexFit",
+    "model": "110"
+  },
+  "Boardshorts": {
+    "sizeMap": {
+      "30": {
+        "qty": 19
+      },
+      "32": {
+        "qty": 30
+      },
+      "34": {
+        "qty": 32
+      },
+      "36": {
+        "qty": 31
+      },
+      "38": {
+        "qty": 21
+      },
+      "40": {
+        "qty": 13
+      },
+      "42": {
+        "qty": 25
+      },
+      "44": {
+        "qty": 15
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "Technical utility shorts made with Cordura fabric for durability. Water-resistant with multiple utility pockets.",
+    "squareCategory": "Clothing > Water Ops > Shorts",
+    "manufacturer": "Florence Marine X",
+    "model": "F1 Boardshorts"
+  },
+  "Multi-Tool": {
+    "sizeMap": {
+      "STANDARD": {
+        "qty": 37
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "Gerber MP-600 multi-tool. #1 military multi-tool with one-hand opening pliers, 14 tools, and stainless steel construction.",
+    "squareCategory": "Tools & Lighting > Multi-Tools, Tools & Lighting > Multi-Tools > Standard",
+    "manufacturer": "Gerber",
+    "model": "MP-600"
+  },
+  "Globe Rescue Boots": {
+    "sizeMap": {
+      "9 M": {
+        "qty": 3
+      },
+      "9.5 M": {
+        "qty": 3
+      },
+      "10 M": {
+        "qty": 3
+      },
+      "10.5 M": {
+        "qty": 5
+      },
+      "11 M": {
+        "qty": 9
+      },
+      "11.5 M": {
+        "qty": 3
+      },
+      "12 M": {
+        "qty": 7
+      },
+      "12.5 M": {
+        "qty": 5
+      },
+      "6.5 W": {
+        "qty": 1
+      },
+      "8 W": {
+        "qty": 1
+      },
+      "8.5 W": {
+        "qty": 1
+      },
+      "9 W": {
+        "qty": 3
+      },
+      "9.5 W": {
+        "qty": 1
+      },
+      "10 W": {
+        "qty": 2
+      },
+      "10.5 W": {
+        "qty": 5
+      },
+      "11 W": {
+        "qty": 2
+      },
+      "11.5 W": {
+        "qty": 8
+      },
+      "12 W": {
+        "qty": 6
+      },
+      "12.5 W": {
+        "qty": 5
+      },
+      "7 M": {
+        "qty": 1
+      },
+      "8 M WOMENS": {
+        "qty": 1
+      },
+      "9.5 NARROW": {
+        "qty": 2
+      },
+      "13 M": {
+        "qty": 1
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "Quad-certified rescue boots (NFPA 1977/1951/1992/1999) with athletic construction, GORE-TEX liner, and impact-resistant metatarsal guard.",
+    "squareCategory": "Footwear > Rescue Boots, Footwear > Rescue Boots > Men's, Footwear > Rescue Boots > Women's",
+    "manufacturer": "Globe",
+    "model": "Technical Rescue Boot"
+  },
+  "USA-02 F.O.G.": {
+    "sizeMap": {
+      "STANDARD": {
+        "qty": 26
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "Field Operations Guide for Los Angeles County Fire Department USAR operations.",
+    "squareCategory": "References > Field Guides > FOG",
+    "manufacturer": "LACoFD",
+    "model": "Field Operations Guide"
+  },
+  "Cold Weather Work Gloves": {
+    "sizeMap": {
+      "M": {
+        "qty": 36
+      },
+      "S": {
+        "qty": 0
+      },
+      "L": {
+        "qty": 93
+      },
+      "XL": {
+        "qty": 87
+      },
+      "2XL": {
+        "qty": 39
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "Cold weather impact gloves with TPR exoskeleton (ANSI 138 Level 2), 3M Thinsulate insulation, and D3O palm padding.",
+    "squareCategory": "Gloves > Cold Weather > Insulated",
+    "manufacturer": "Mechanix",
+    "model": "Coldwork M-PACT (Insulated)"
+  },
+  "Cold Weather Gloves": {
+    "sizeMap": {
+      "M": {
+        "qty": 18
+      },
+      "S": {
+        "qty": 20
+      },
+      "L": {
+        "qty": 48
+      },
+      "XL": {
+        "qty": 17
+      },
+      "2XL": {
+        "qty": 18
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "Insulated winter work gloves with Thinsulate insulation, touchscreen capability, and wind/water resistance.",
+    "squareCategory": "Gloves > Cold Weather > Insulated",
+    "manufacturer": "Mechanix",
+    "model": "Coldwork Peak (Insulated)"
+  },
+  "Bath in a Bag Wipes": {
+    "sizeMap": {
+      "STANDARD": {
+        "qty": 123
+      }
+    },
+    "lowStockThreshold": 10,
+    "description": "Portable solar-heated camp shower. Fill with water and let sun heat for field hygiene.",
+    "squareCategory": "Personal Care > Hygiene > Wipes",
+    "manufacturer": "Medline",
+    "model": "Ready Bath Wipes"
+  },
+  "Helmet": {
+    "sizeMap": {
+      "L": {
+        "qty": 0
+      },
+      "ONE SIZE": {
+        "qty": 28
+      },
+      "BLUE": {
+        "qty": 7
+      },
+      "ORANGE": {
+        "qty": 11
+      },
+      "WHITE": {
+        "qty": 7
+      },
+      "YELLOW": {
+        "qty": 23
+      }
+    },
+    "lowStockThreshold": 10,
+    "description": "Purpose-built SAR helmet with NVG shroud, BOA fit system, and accessory rails. Meets industrial/mountaineering standards.",
+    "squareCategory": "Head Protection > Water Helmets > NRS",
+    "manufacturer": "Team Wendy",
+    "model": "EXFIL SAR"
+  },
+  "Head/Neck Gaiter": {
+    "sizeMap": {
+      "ONE SIZE": {
+        "qty": 249
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "This neck gaiter features a breathable, lightweight material and a multifunctional design, making it suitable for various activities. Its versatile wear ensures comfort and functionality in any setting.",
+    "model": "Neck Gaiter"
+  },
+  "IFAK": {
+    "sizeMap": {
+      "STANDARD": {
+        "qty": 151
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "NAR ROO M IFAK",
+    "squareCategory": "Medical > First Aid > IFAK",
+    "manufacturer": "North American Rescue",
+    "model": "IFAK"
+  },
+  "Boot Gaiters Pair": {
+    "sizeMap": {
+      "M": {
+        "qty": 46
+      },
+      "S": {
+        "qty": 21
+      },
+      "L": {
+        "qty": 43
+      },
+      "XL": {
+        "qty": 61
+      },
+      "2XL": {
+        "qty": 1
+      }
+    },
+    "lowStockThreshold": 10,
+    "description": "Outdoor Research insulated gloves designed for cold weather operations with dexterity and warmth.",
+    "squareCategory": "Footwear > Accessories > Gaiters",
+    "manufacturer": "Outdoor Research",
+    "model": "Rocky Mountain High Gaiters"
+  },
+  "Insect Repellant": {
+    "sizeMap": {
+      "STANDARD": {
+        "qty": 200
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "Insect repellent for protection against mosquitoes, ticks, and other biting insects.",
+    "squareCategory": "Personal Care > Insect Protection > Repellent",
+    "model": "Picaridin Insect Repellent"
+  },
+  "Flashlight": {
+    "sizeMap": {
+      "STANDARD": {
+        "qty": 133
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "Pelican 3415 right-angle LED flashlight. Intrinsically safe, 336 lumens, spot/flood modes, articulating head.",
+    "squareCategory": "Tools & Lighting",
+    "manufacturer": "Pelican",
+    "model": "3415 Right Angle"
+  },
+  "Headlamp": {
+    "sizeMap": {
+      "STANDARD": {
+        "qty": 24
+      }
+    },
+    "lowStockThreshold": 10,
+    "description": "Princeton Tec VIZ II LED headlamp with multiple lighting modes, waterproof design, and helmet-compatible.",
+    "squareCategory": "Head Protection > Helmet Accessories > Headlamps",
+    "manufacturer": "Princeton Tec",
+    "model": "VIZZ II"
+  },
+  "Cold Weather Boots": {
+    "sizeMap": {
+      "9": {
+        "qty": 2
+      },
+      "10": {
+        "qty": 7
+      },
+      "11": {
+        "qty": 10
+      },
+      "12": {
+        "qty": 11
+      },
+      "13": {
+        "qty": 8
+      },
+      "9.5": {
+        "qty": 7
+      },
+      "10.5": {
+        "qty": 11
+      },
+      "11.5": {
+        "qty": 10
+      }
+    },
+    "lowStockThreshold": 10,
+    "description": "Rocky Alpha Force tactical/duty boots with waterproof construction, slip-resistant outsole, and comfort footbed.",
+    "squareCategory": "Footwear > Cold Weather Boots > Insulated",
+    "manufacturer": "Rocky",
+    "model": "Alpha Force (Insulated)"
+  },
+  "Large Roller Bag (90 lbs. MAX)": {
+    "sizeMap": {
+      "STANDARD": {
+        "qty": 57
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "Wolfpack Gear Max Air Roller Bag",
+    "squareCategory": "Packs & Bags > Luggage > Roller Bags",
+    "manufacturer": "Wolf Pack Gear",
+    "model": "Max Air Roller Bag"
+  },
+  "Emergency Bivy Sack": {
+    "sizeMap": {
+      "ONE SIZE": {
+        "qty": 29
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "SOL emergency bivy sack in high-vis orange. Reflects body heat, waterproof for emergency shelter.",
+    "squareCategory": "Sleep System > Emergency Shelter > Bivvy",
+    "manufacturer": "SOL",
+    "model": "Escape Bivy Orange"
+  },
+  "WMD Kit (Scott Mask, Adapters, Bag)": {
+    "sizeMap": {
+      "ONE SIZE": {
+        "qty": 44
+      },
+      "STANDARD": {
+        "qty": 106
+      }
+    },
+    "lowStockThreshold": 5,
+    "squareCategory": "Safety & Protection > Respirators",
+    "description": "Scott SCBA equipment bag for storing and transporting self-contained breathing apparatus.",
+    "manufacturer": "Scott",
+    "model": "Mask + Adapters Kit"
+  },
+  "BDU Top (Tru-Spec)": {
+    "sizeMap": {
+      "2XL REGULAR": {
+        "qty": 68
+      },
+      "LARGE REGULAR": {
+        "qty": 51
+      },
+      "SMALL REGULAR": {
+        "qty": 9
+      },
+      "XL LONG": {
+        "qty": 40
+      },
+      "XL REGULAR": {
+        "qty": 156
+      },
+      "2XL LONG": {
+        "qty": 66
+      },
+      "3XL LONG": {
+        "qty": 6
+      },
+      "XL SHORT": {
+        "qty": 14
+      },
+      "SMALL SHORT": {
+        "qty": 0
+      },
+      "MEDIUM LONG": {
+        "qty": 40
+      },
+      "MEDIUM REGULAR": {
+        "qty": 46
+      },
+      "MEDIUM SHORT": {
+        "qty": 0
+      },
+      "LARGE SHORT": {
+        "qty": 9
+      },
+      "LARGE LONG": {
+        "qty": 8
+      },
+      "SMALL LONG": {
+        "qty": 0
+      }
+    },
+    "lowStockThreshold": 10,
+    "description": "MIL-SPEC BDU shirt with cotton ripstop fabric, button front closure, chest and sleeve pockets, and reinforced elbows.",
+    "squareCategory": "Clothing > BDUs > Tops",
+    "manufacturer": "Tru-Spec",
+    "model": "BDU Blouse"
+  },
+  "BDU Pants (Tru-Spec)": {
+    "sizeMap": {
+      "2XL REGULAR": {
+        "qty": 41
+      },
+      "LARGE REGULAR": {
+        "qty": 24
+      },
+      "SMALL REGULAR": {
+        "qty": 12
+      },
+      "XL LONG": {
+        "qty": 47
+      },
+      "XL REGULAR": {
+        "qty": 61
+      },
+      "2XL LONG": {
+        "qty": 29
+      },
+      "SMALL SHORT": {
+        "qty": 0
+      },
+      "MEDIUM LONG": {
+        "qty": 14
+      },
+      "MEDIUM REGULAR": {
+        "qty": 24
+      },
+      "MEDIUM SHORT": {
+        "qty": 8
+      },
+      "LARGE SHORT": {
+        "qty": 27
+      },
+      "LARGE LONG": {
+        "qty": 35
+      },
+      "SMALL LONG": {
+        "qty": 0
+      },
+      "2XL SHORT": {
+        "qty": 20
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "MIL-SPEC BDU pants with 100% cotton ripstop fabric. Features reinforced seat/knees, cargo pockets with drain holes, and adjustable waist tabs.",
+    "squareCategory": "Clothing > BDUs > Bottoms",
+    "manufacturer": "Tru-Spec",
+    "model": "BDU Pants"
+  },
+  "BDU Shorts": {
+    "sizeMap": {
+      "M": {
+        "qty": 15
+      },
+      "S": {
+        "qty": 4
+      },
+      "L": {
+        "qty": 9
+      },
+      "XL": {
+        "qty": 27
+      },
+      "2XL": {
+        "qty": 19
+      }
+    },
+    "lowStockThreshold": 10,
+    "description": "100% cotton ripstop tactical shorts with cargo pockets, YKK zipper, and reinforced seat. 10\" inseam with DropN pockets for quick access.",
+    "squareCategory": "Clothing > BDUs > Bottoms",
+    "manufacturer": "Tru-Spec",
+    "model": "BDU Shorts"
+  },
+  "Thermal Bottom Light Wt.": {
+    "sizeMap": {
+      "M": {
+        "qty": 50
+      },
+      "S": {
+        "qty": 29
+      },
+      "L": {
+        "qty": 50
+      },
+      "XL": {
+        "qty": 48
+      },
+      "2XL": {
+        "qty": 90
+      },
+      "3XL": {
+        "qty": 29
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "Extended Cold Weather System Level 2 base layer. Moisture-wicking, quick-dry thermal underwear for layering in cold conditions.",
+    "squareCategory": "Clothing > Base Layers > Bottoms",
+    "manufacturer": "Tru-Spec",
+    "model": "Gen-III ECWS Level 1 Bottom"
+  },
+  "Thermal Top Light Wt.": {
+    "sizeMap": {
+      "M": {
+        "qty": 50
+      },
+      "S": {
+        "qty": 29
+      },
+      "L": {
+        "qty": 50
+      },
+      "XL": {
+        "qty": 50
+      },
+      "2XL": {
+        "qty": 43
+      },
+      "3XL": {
+        "qty": 29
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "Extended Cold Weather System Level 2 base layer. Moisture-wicking, quick-dry thermal underwear for layering in cold conditions.",
+    "squareCategory": "Clothing > Base Layers > Tops",
+    "manufacturer": "Tru-Spec",
+    "model": "Gen-III ECWS Level 1 Top"
+  },
+  "Rain Pants": {
+    "sizeMap": {
+      "2XL REGULAR": {
+        "qty": 13
+      },
+      "MEDIUM REGULAR": {
+        "qty": 16
+      },
+      "LARGE REGULAR": {
+        "qty": 30
+      },
+      "SMALL REGULAR": {
+        "qty": 9
+      },
+      "XL REGULAR": {
+        "qty": 24
+      }
+    },
+    "lowStockThreshold": 10,
+    "description": "Waterproof rain pants with lightweight packable design, adjustable waist, and side-zip leg openings for easy on/off over boots.",
+    "squareCategory": "Clothing > Outerwear > Rain Gear",
+    "manufacturer": "Tru-Spec",
+    "model": "Rain Shell Pant"
+  },
+  "Magpul Rails": {
+    "sizeMap": {
+      "ONE SIZE": {
+        "qty": 9
+      }
+    },
+    "lowStockThreshold": 10,
+    "description": "Picatinny rail mounting kit for Team Wendy helmets. Allows attachment of lights, cameras, and accessories.",
+    "squareCategory": "Head Protection > Helmet Accessories > Rail Adapters",
+    "manufacturer": "Team Wendy",
+    "model": "MAGPUL MOE 5-Slot M"
+  },
+  "Vent Covers": {
+    "sizeMap": {
+      "ONE SIZE": {
+        "qty": 15
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "Replacement vent covers for EXFIL SAR helmets. Prevents debris from entering crown vents during operations.",
+    "squareCategory": "Head Protection > Helmet Accessories > Vent Covers",
+    "manufacturer": "Team Wendy",
+    "model": "SAR Replacement Vent Covers"
+  },
+  "American Flag BDU Patch": {
+    "sizeMap": {
+      "STANDARD": {
+        "qty": 473
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "US flag patch with hook-and-loop backing for uniform/gear attachment. IR or standard options.",
+    "squareCategory": "Patches > Flags",
+    "model": "US Flag Patch with Velcro"
+  },
+  "Shoring Guide": {
+    "sizeMap": {
+      "STANDARD": {
+        "qty": 28
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "US Army Corps of Engineers guide for structural shoring in search and rescue operations.\r\nEdition 5.0 Oct 2021",
+    "squareCategory": "References > Field Guides > Shoring",
+    "manufacturer": "USACE",
+    "model": "US&R Shoring Operations Guide"
+  },
+  "Structural Specialist Guide": {
+    "sizeMap": {
+      "STANDARD": {
+        "qty": 274
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "Field Operations Guide for USAR Structural Specialists. Reference for collapse rescue.\r\nEdition 9 May 2022",
+    "manufacturer": "USACE",
+    "model": "US&R Structures Specialist FOG"
+  },
+  "Safety Glasses": {
+    "sizeMap": {
+      "STANDARD": {
+        "qty": 200
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "Uvex S3200X safety glasses with anti-fog lens, wraparound protection, and adjustable temples.",
+    "squareCategory": "Safety & Protection > Eye Protection > Safety Glasses",
+    "manufacturer": "Uvex",
+    "model": "S3200X"
+  },
+  "Water Shirt": {
+    "sizeMap": {
+      "XS": {
+        "qty": 0
+      },
+      "M": {
+        "qty": 35
+      },
+      "S": {
+        "qty": 49
+      },
+      "L": {
+        "qty": 36
+      },
+      "XL": {
+        "qty": 22
+      },
+      "2XL": {
+        "qty": 48
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "Anetik Premium Performance sun-protective performance shirt with UPF 30+ rating, moisture-wicking fabric, and cooling technology for hot conditions.",
+    "squareCategory": "Clothing > Water Ops > Shirts",
+    "model": "Water Shirt"
+  },
+  "Web Gear & Belt Kit": {
+    "sizeMap": {
+      "STANDARD": {
+        "qty": 64
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "Wolfpack Gear Load Bearing Harness",
+    "squareCategory": "Packs & Bags > Load Bearing > Web Gear",
+    "manufacturer": "Wolf Pack Gear",
+    "model": "Load Bearing Web Gear"
+  },
+  "Web Gear Bag (40 lbs. MAX)": {
+    "sizeMap": {
+      "STANDARD": {
+        "qty": 54
+      }
+    },
+    "lowStockThreshold": 5,
+    "description": "Wolf Pack Gear, Web Gear Bag",
+    "squareCategory": "Packs & Bags > Luggage > Roller Bags",
+    "manufacturer": "Wolf Pack",
+    "model": "Web Gear Bag"
+  }
+}
