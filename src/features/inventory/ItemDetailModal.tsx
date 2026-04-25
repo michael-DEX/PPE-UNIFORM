@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   X,
   ChevronDown,
@@ -10,22 +11,32 @@ import {
   Settings,
   Plus,
   Minus,
+  Equal,
   Check,
   AlertTriangle,
   Trash2,
   Edit2,
+  Camera,
 } from "lucide-react";
-import { onSnapshot, query, where, doc, deleteDoc, updateDoc, serverTimestamp, orderBy, limit } from "firebase/firestore";
-import { db } from "../../lib/firebase";
-import { backorderedRef, transactionsRef } from "../../lib/firestore";
+import { onSnapshot, query, where, serverTimestamp } from "firebase/firestore";
+import { backorderedRef } from "../../lib/firestore";
 import { useAuthContext } from "../../app/AuthProvider";
 import { usePersonnel } from "../../hooks/usePersonnel";
 import { getTotalStock, getStockStatus, isLowStock, isOutOfStock } from "../../hooks/useInventory";
 import { getCategoryLabel, CATALOG_TREE } from "../../constants/catalogCategories";
 import { commitIssue } from "../../lib/issueCommit";
 import { commitStockAdjust } from "../../lib/stockCommit";
+import { commitItemEdit } from "../../lib/itemEditCommit";
+import { commitItemDelete } from "../../lib/itemDeleteCommit";
+import { compareSizes } from "../../lib/sizeOrder";
+import { safeQty } from "../../lib/qty";
+import { subtitleFromItem } from "../../lib/itemSubtitle";
 import SearchInput from "../../components/ui/SearchInput";
-import type { Item, Personnel, BackorderItem, ItemCategory, Transaction } from "../../types";
+import { useToast } from "../../components/ui/Toast";
+import PackingSection from "./itemDetail/PackingSection";
+import SettingsSection from "./itemDetail/SettingsSection";
+import ActivitySection from "./itemDetail/ActivitySection";
+import type { Item, Personnel, BackorderItem, ItemCategory } from "../../types";
 
 interface Props {
   item: Item | null;
@@ -33,25 +44,37 @@ interface Props {
   onClose: () => void;
   startInEdit?: boolean;
   startInAdjust?: boolean;
+  /** When opening with `startInAdjust`, pre-select this reason in the
+   *  adjust panel (e.g. "received" to jump straight into the receive flow). */
+  startInAdjustReason?: string;
 }
 
-const PACKING_LABELS: Record<string, string> = {
-  deploymentUniform: "Deployment Uniform",
-  bag24hr: "24HR Bag",
-  rollerBag: "Roller Bag",
-  webGear: "Web Gear",
-  webGearBag: "Web Gear Bag",
-  coldWeatherBag: "Cold Weather Bag",
-};
+type AdjustMode = "add" | "remove" | "set";
 
-const ADJUST_REASONS = [
-  { value: "received", label: "Stock Received" },
-  { value: "recount", label: "Inventory Recount" },
-  { value: "damage", label: "Damage" },
-  { value: "theft", label: "Theft" },
-  { value: "loss", label: "Loss" },
-  { value: "restock_return", label: "Restock Return" },
-] as const;
+interface AdjustReason {
+  value: string;
+  label: string;
+  mode: AdjustMode;
+  icon: typeof Plus;
+  color: "emerald" | "red" | "blue";
+}
+
+const ADJUST_REASONS: AdjustReason[] = [
+  { value: "received",       label: "Received",       mode: "add",    icon: Plus,  color: "emerald" },
+  { value: "damage",         label: "Damaged",        mode: "remove", icon: Minus, color: "red" },
+  { value: "loss",           label: "Lost",           mode: "remove", icon: Minus, color: "red" },
+  { value: "recount",        label: "Recount",        mode: "set",    icon: Equal, color: "blue" },
+  { value: "restock_return", label: "Restock Return", mode: "add",    icon: Plus,  color: "emerald" },
+];
+
+// "receive" is used for incoming stock (new units), "adjust" for corrections.
+const REASON_TO_TYPE: Record<string, "receive" | "adjust"> = {
+  received: "receive",
+  restock_return: "receive",
+  damage: "adjust",
+  loss: "adjust",
+  recount: "adjust",
+};
 
 // --- Collapsible Section ---
 function Section({
@@ -89,8 +112,8 @@ function Section({
 }
 
 // --- Main Component ---
-export default function ItemDetailModal({ item, open, onClose, startInEdit = false, startInAdjust = false }: Props) {
-  const { isManager } = useAuthContext();
+export default function ItemDetailModal({ item, open, onClose, startInEdit = false, startInAdjust = false, startInAdjustReason }: Props) {
+  const { isManager, logisticsUser } = useAuthContext();
 
   // Reset all local state when item changes
   const [key, setKey] = useState(0);
@@ -112,10 +135,18 @@ export default function ItemDetailModal({ item, open, onClose, startInEdit = fal
 
   async function confirmDelete() {
     if (!item || deleteConfirmText !== "DELETE") return;
+    if (!logisticsUser) {
+      setDeleteError("You must be signed in to delete an item.");
+      return;
+    }
     setDeleting(true);
     setDeleteError(null);
     try {
-      await deleteDoc(doc(db, "items", item.id));
+      await commitItemDelete({
+        itemId: item.id,
+        snapshot: item,
+        actor: logisticsUser,
+      });
       setShowDeleteConfirm(false);
       setDeleteConfirmText("");
       onClose();
@@ -138,11 +169,17 @@ export default function ItemDetailModal({ item, open, onClose, startInEdit = fal
           <div className="flex items-start justify-between">
             <div className="flex-1 min-w-0">
               <h2 className="text-xl font-bold text-gray-900 truncate">{item.name}</h2>
-              {(item.manufacturer || item.model) && (
-                <p className="text-xs text-gray-500 mt-0.5 truncate">
-                  {[item.manufacturer, item.model].filter(Boolean).join(" — ")}
-                </p>
-              )}
+              {(() => {
+                // Standardized via `subtitleFromItem` so every surface across
+                // the app uses the same en-dash separator and trim logic.
+                // Previously em-dash ("—"), swapped to en-dash for consistency.
+                const subtitle = subtitleFromItem(item);
+                return subtitle ? (
+                  <p className="text-xs text-gray-500 mt-0.5 truncate">
+                    {subtitle}
+                  </p>
+                ) : null;
+              })()}
               {item.squareCategory && (
                 <p className="text-[11px] text-gray-400 mt-0.5 truncate" title={item.squareCategory}>
                   {item.squareCategory}
@@ -230,7 +267,7 @@ export default function ItemDetailModal({ item, open, onClose, startInEdit = fal
             <>
               {/* 1. Stock & Sizes */}
               <Section title="Stock & Sizes" icon={Package} defaultOpen={true}>
-                <StockSection item={item} autoAdjust={startInAdjust} />
+                <StockSection item={item} autoAdjust={startInAdjust} autoReason={startInAdjustReason} />
               </Section>
 
               {/* 2. Issue / Return */}
@@ -252,7 +289,15 @@ export default function ItemDetailModal({ item, open, onClose, startInEdit = fal
 
               {/* 5. Settings */}
               <Section title="Settings" icon={Settings} defaultOpen={false}>
-                <SettingsSection item={item} />
+                <SettingsSection
+                  item={item}
+                  canDelete={isManager}
+                  onRequestDelete={() => {
+                    setDeleteConfirmText("");
+                    setDeleteError(null);
+                    setShowDeleteConfirm(true);
+                  }}
+                />
               </Section>
             </>
           )}
@@ -350,9 +395,19 @@ function StockStatusPill({ item }: { item: Item }) {
 }
 
 // ── Stock & Sizes Section ──
-function StockSection({ item, autoAdjust = false }: { item: Item; autoAdjust?: boolean }) {
+function StockSection({
+  item,
+  autoAdjust = false,
+  autoReason,
+}: {
+  item: Item;
+  autoAdjust?: boolean;
+  autoReason?: string;
+}) {
   const { logisticsUser } = useAuthContext();
-  const sizeEntries = Object.entries(item.sizeMap || {}).sort(([a], [b]) => a.localeCompare(b));
+  const toast = useToast();
+  const navigate = useNavigate();
+  const sizeEntries = Object.entries(item.sizeMap || {}).sort(([a], [b]) => compareSizes(a, b));
 
   // Listen for pending backorders on this item
   const [pendingBackorders, setPendingBackorders] = useState<BackorderItem[]>([]);
@@ -365,48 +420,127 @@ function StockSection({ item, autoAdjust = false }: { item: Item; autoAdjust?: b
   }, [item.id]);
 
   const [adjustMode, setAdjustMode] = useState(autoAdjust);
+
+  // `reason` starts null — user must pick a reason before editing any row.
+  // `quantities` is a per-size value whose meaning depends on the mode:
+  //   add    → amount to add (positive int)
+  //   remove → amount to remove (positive int, capped at current qty)
+  //   set    → new absolute total (non-negative int, pre-seeded with current)
+  const [reason, setReason] = useState<string | null>(
+    autoAdjust && autoReason ? (autoReason ?? null) : null,
+  );
+  const [quantities, setQuantities] = useState<Record<string, number>>(() => {
+    if (!autoAdjust || !autoReason) return {};
+    const r = ADJUST_REASONS.find((x) => x.value === autoReason);
+    if (!r || r.mode !== "set") return {};
+    const seed: Record<string, number> = {};
+    for (const [size, stock] of Object.entries(item.sizeMap || {})) {
+      seed[size] = stock.qty;
+    }
+    return seed;
+  });
+
   useEffect(() => {
     if (autoAdjust) setAdjustMode(true);
-  }, [autoAdjust, item.id]);
-  const [reason, setReason] = useState("received");
-  const [quantities, setQuantities] = useState<Record<string, number>>({});
+    if (autoAdjust && autoReason) {
+      const r = ADJUST_REASONS.find((x) => x.value === autoReason);
+      if (r) {
+        setReason(r.value);
+        if (r.mode === "set") {
+          const seed: Record<string, number> = {};
+          for (const [size, stock] of Object.entries(item.sizeMap || {})) {
+            seed[size] = stock.qty;
+          }
+          setQuantities(seed);
+        } else {
+          setQuantities({});
+        }
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoAdjust, autoReason, item.id]);
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
 
-  const hasQty = Object.values(quantities).some((q) => q !== 0);
-  const isDeduction = ["damage", "theft", "loss"].includes(reason);
+  const reasonMeta = ADJUST_REASONS.find((r) => r.value === reason) ?? null;
+  const mode: AdjustMode | null = reasonMeta?.mode ?? null;
+
+  function computeDelta(value: number, currentQty: number): number {
+    if (mode === "add") return Math.max(0, value);
+    if (mode === "remove") return -Math.min(Math.max(0, value), currentQty);
+    if (mode === "set") return value - currentQty;
+    return 0;
+  }
+
+  const netChange = sizeEntries.reduce((sum, [size, stock]) => {
+    const val = quantities[size] ?? 0;
+    return sum + computeDelta(val, stock.qty);
+  }, 0);
+
+  const hasChange = sizeEntries.some(([size, stock]) => {
+    const val = quantities[size] ?? 0;
+    return computeDelta(val, stock.qty) !== 0;
+  });
+
+  // Picking a reason resets the row values — "set" mode seeds rows with the
+  // current qty so an untouched row reads as "no change". Other modes start empty.
+  function pickReason(next: AdjustReason) {
+    setReason(next.value);
+    if (next.mode === "set") {
+      const seeded: Record<string, number> = {};
+      for (const [size, stock] of sizeEntries) seeded[size] = stock.qty;
+      setQuantities(seeded);
+    } else {
+      setQuantities({});
+    }
+  }
+
+  function resetAdjust() {
+    setAdjustMode(false);
+    setReason(null);
+    setQuantities({});
+    setNotes("");
+  }
 
   async function handleAdjust() {
-    if (!logisticsUser || !hasQty) return;
+    if (!logisticsUser || !hasChange || !reason || !reasonMeta) return;
     setSubmitting(true);
     try {
-      const stockItems = Object.entries(quantities)
-        .filter(([, qty]) => qty !== 0)
-        .map(([size, qty]) => ({
-          itemId: item.id,
-          itemName: item.name,
-          size,
-          qtyChange: isDeduction ? -Math.abs(qty) : Math.abs(qty),
-          qtyBefore: item.sizeMap[size]?.qty ?? 0,
-        }));
+      const stockItems = sizeEntries
+        .map(([size, stock]) => {
+          const val = quantities[size] ?? 0;
+          const delta = computeDelta(val, stock.qty);
+          return {
+            itemId: item.id,
+            itemName: item.name,
+            size,
+            qtyChange: delta,
+            qtyBefore: stock.qty,
+          };
+        })
+        .filter((e) => e.qtyChange !== 0);
 
       await commitStockAdjust({
         actor: logisticsUser,
-        type: reason === "received" || reason === "restock_return" ? "receive" : "adjust",
+        type: REASON_TO_TYPE[reason] ?? "adjust",
         items: stockItems,
-        notes: `[${ADJUST_REASONS.find((r) => r.value === reason)?.label}] ${notes}`.trim(),
+        notes: `[${reasonMeta.label}] ${notes}`.trim(),
       });
 
       setSuccess(true);
       setTimeout(() => {
         setAdjustMode(false);
+        setReason(null);
         setQuantities({});
         setNotes("");
         setSuccess(false);
       }, 1500);
     } catch (err) {
       console.error("Stock adjust failed:", err);
+      toast.error(
+        err instanceof Error ? err.message : "Failed to adjust stock.",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -454,10 +588,7 @@ function StockSection({ item, autoAdjust = false }: { item: Item; autoAdjust?: b
           </button>
         ) : (
           <button
-            onClick={() => {
-              setAdjustMode(false);
-              setQuantities({});
-            }}
+            onClick={resetAdjust}
             className="text-xs font-medium text-gray-500 hover:text-gray-700"
           >
             Cancel
@@ -465,168 +596,319 @@ function StockSection({ item, autoAdjust = false }: { item: Item; autoAdjust?: b
         )}
       </div>
 
-      {/* Reason selector (when adjusting) */}
-      {adjustMode && (
-        <div className="bg-blue-50 rounded-lg p-3 space-y-2">
-          <label className="block text-xs font-medium text-gray-700">Adjustment Reason</label>
-          <select
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            className="w-full text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {ADJUST_REASONS.map((r) => (
-              <option key={r.value} value={r.value}>
-                {r.label}
-              </option>
-            ))}
-          </select>
-          {isDeduction && (
-            <p className="text-xs text-red-600">Quantities entered will be deducted from stock.</p>
-          )}
-        </div>
-      )}
-
-      {/* Size table */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-200">
-              <th className="text-left py-2 px-2 text-xs font-medium text-gray-500 uppercase">Size</th>
-              <th className="text-right py-2 px-2 text-xs font-medium text-gray-500 uppercase">Qty</th>
-              <th className="text-left py-2 px-2 text-xs font-medium text-gray-500 uppercase">Status</th>
-              {adjustMode && (
-                <th className="text-right py-2 px-2 text-xs font-medium text-gray-500 uppercase">
-                  {isDeduction ? "Remove" : "Add"}
-                </th>
-              )}
-              {adjustMode && (
-                <th className="text-right py-2 px-2 text-xs font-medium text-gray-500 uppercase">New Qty</th>
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            {sizeEntries.map(([size, stock]) => {
-              const threshold = stock.lowStockThreshold ?? item.lowStockThreshold ?? 5;
-              const status = getStockStatus(stock.qty, threshold);
-              const delta = quantities[size] || 0;
-              const newQty = isDeduction ? stock.qty - Math.abs(delta) : stock.qty + Math.abs(delta);
-
+      {adjustMode ? (
+        <>
+          {/* Reason grid — 5 tappable cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {ADJUST_REASONS.map((r) => {
+              const isSelected = reason === r.value;
+              const Icon = r.icon;
+              const sign = r.mode === "add" ? "+" : r.mode === "remove" ? "\u2212" : "=";
+              const selectedClasses =
+                r.color === "emerald"
+                  ? "bg-emerald-50 border-emerald-500 text-emerald-900 ring-2 ring-emerald-200"
+                  : r.color === "red"
+                    ? "bg-red-50 border-red-500 text-red-900 ring-2 ring-red-200"
+                    : "bg-blue-50 border-blue-500 text-blue-900 ring-2 ring-blue-200";
+              const selectedIconClasses =
+                r.color === "emerald"
+                  ? "text-emerald-600"
+                  : r.color === "red"
+                    ? "text-red-600"
+                    : "text-blue-600";
               return (
-                <tr key={size} className="border-b border-gray-50 hover:bg-gray-50">
-                  <td className="py-2 px-2 font-medium text-gray-900">{size}</td>
-                  <td
-                    className={`py-2 px-2 text-right font-mono font-medium ${
-                      status === "out-of-stock"
-                        ? "text-red-600"
-                        : status === "low-stock"
-                        ? "text-amber-600"
-                        : "text-gray-900"
+                <button
+                  key={r.value}
+                  type="button"
+                  onClick={() => pickReason(r)}
+                  aria-pressed={isSelected}
+                  className={`min-h-[44px] px-3 py-2 rounded-lg border text-sm font-medium flex items-center justify-between gap-2 transition-colors ${
+                    isSelected
+                      ? selectedClasses
+                      : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
+                  }`}
+                >
+                  <span className="flex items-center gap-2 min-w-0">
+                    <Icon size={16} className={`shrink-0 ${isSelected ? selectedIconClasses : "text-gray-400"}`} />
+                    <span className="truncate">{r.label}</span>
+                  </span>
+                  <span
+                    className={`shrink-0 font-bold ${
+                      isSelected ? selectedIconClasses : "text-gray-300"
                     }`}
                   >
-                    {stock.qty}
-                  </td>
-                  <td className="py-2 px-2">
-                    <span
-                      className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
-                        status === "out-of-stock"
-                          ? "bg-red-100 text-red-700"
-                          : status === "low-stock"
-                          ? "bg-amber-100 text-amber-700"
-                          : "bg-emerald-100 text-emerald-700"
-                      }`}
-                    >
-                      {status === "out-of-stock" ? "Out" : status === "low-stock" ? "Low" : "OK"}
-                    </span>
-                  </td>
-                  {adjustMode && (
-                    <td className="py-1 px-2">
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() =>
-                            setQuantities((p) => ({
-                              ...p,
-                              [size]: Math.max(0, (p[size] || 0) - 1),
-                            }))
-                          }
-                          className="p-0.5 rounded hover:bg-gray-200 text-gray-500"
-                        >
-                          <Minus size={14} />
-                        </button>
-                        <input
-                          type="number"
-                          min={0}
-                          value={delta || ""}
-                          onChange={(e) =>
-                            setQuantities((p) => ({
-                              ...p,
-                              [size]: Math.max(0, parseInt(e.target.value) || 0),
-                            }))
-                          }
-                          className="w-14 text-center text-sm border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          placeholder="0"
-                        />
-                        <button
-                          onClick={() =>
-                            setQuantities((p) => ({
-                              ...p,
-                              [size]: (p[size] || 0) + 1,
-                            }))
-                          }
-                          className="p-0.5 rounded hover:bg-gray-200 text-gray-500"
-                        >
-                          <Plus size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  )}
-                  {adjustMode && (
-                    <td
-                      className={`py-2 px-2 text-right font-mono text-sm ${
-                        delta > 0
-                          ? isDeduction
-                            ? "text-red-600 font-medium"
-                            : "text-emerald-600 font-medium"
-                          : "text-gray-400"
-                      }`}
-                    >
-                      {delta > 0 ? newQty : "—"}
-                    </td>
-                  )}
-                </tr>
+                    {sign}
+                  </span>
+                </button>
               );
             })}
-          </tbody>
-        </table>
-      </div>
+          </div>
 
-      {/* Adjust submit */}
-      {adjustMode && (
-        <div className="space-y-2 pt-2">
-          <input
-            type="text"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Notes (e.g., PO #1234, vendor shipment)"
-            className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          {success ? (
-            <div className="flex items-center justify-center gap-2 py-2 text-emerald-600">
-              <Check size={18} />
-              <span className="text-sm font-medium">Stock Updated</span>
-            </div>
-          ) : (
+          {/* Scan packing slip shortcut — only when Received is picked */}
+          {reason === "received" && (
             <button
-              onClick={handleAdjust}
-              disabled={!hasQty || submitting}
-              className="w-full py-2 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              type="button"
+              onClick={() => navigate("/logistics/inventory/scan")}
+              className="w-full flex items-center justify-center gap-2 min-h-[44px] px-3 py-2 rounded-lg border border-emerald-200 bg-white text-sm font-medium text-emerald-700 hover:bg-emerald-50 transition-colors"
             >
-              {submitting
-                ? "Saving..."
-                : `Apply ${isDeduction ? "Deduction" : "Adjustment"} (${
-                    Object.values(quantities).filter((q) => q > 0).length
-                  } sizes)`}
+              <Camera size={16} />
+              Scan packing slip to auto-fill
             </button>
           )}
+
+          {/* Placeholder when nothing picked yet */}
+          {!reason && (
+            <p className="text-sm text-gray-500 text-center py-4">
+              Pick a reason to adjust stock.
+            </p>
+          )}
+
+          {/* Size rows — shape varies by mode */}
+          {reason && mode && (
+            <div className="space-y-1.5">
+              {sizeEntries.map(([size, stock]) => {
+                const currentQty = stock.qty;
+                const value = quantities[size] ?? 0;
+                const delta = computeDelta(value, currentQty);
+                const newQty = currentQty + delta;
+                const isActive = delta !== 0;
+                const tint =
+                  !isActive
+                    ? ""
+                    : mode === "add"
+                      ? "bg-emerald-50 border-emerald-200"
+                      : mode === "remove"
+                        ? "bg-red-50 border-red-200"
+                        : "bg-blue-50 border-blue-200";
+
+                if (mode === "set") {
+                  return (
+                    <div
+                      key={size}
+                      className={`flex items-center gap-2 p-2 rounded-lg border border-gray-100 ${tint}`}
+                    >
+                      <span className="w-14 shrink-0 font-medium text-sm text-gray-900">{size}</span>
+                      <span
+                        className={`text-xs tabular-nums text-gray-500 ${isActive ? "line-through" : ""}`}
+                      >
+                        Was {currentQty}
+                      </span>
+                      <span className="flex-1" />
+                      <input
+                        type="number"
+                        min={0}
+                        value={value}
+                        onChange={(e) =>
+                          setQuantities((p) => ({
+                            ...p,
+                            [size]: Math.max(0, parseInt(e.target.value) || 0),
+                          }))
+                        }
+                        aria-label={`New qty for ${size}`}
+                        className="h-11 w-20 text-center text-base font-medium border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <span
+                        className={`w-12 text-right text-xs font-medium tabular-nums ${
+                          isActive ? "text-blue-700" : "text-gray-300"
+                        }`}
+                      >
+                        {delta > 0 ? `+${delta}` : delta < 0 ? `${delta}` : "="}
+                      </span>
+                    </div>
+                  );
+                }
+
+                // add | remove
+                const atMin = value <= 0;
+                const atMax = mode === "remove" && value >= currentQty;
+                const minusActive = mode === "remove" && value > 0;
+                const plusActive = mode === "add" && value > 0;
+
+                return (
+                  <div
+                    key={size}
+                    className={`flex items-center gap-2 p-2 rounded-lg border border-gray-100 ${tint}`}
+                  >
+                    <span className="w-14 shrink-0 font-medium text-sm text-gray-900">{size}</span>
+                    <span className="text-xs text-gray-500 tabular-nums">Cur {currentQty}</span>
+                    <span className="flex-1" />
+                    <div className="inline-flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setQuantities((p) => ({
+                            ...p,
+                            [size]: Math.max(0, (p[size] ?? 0) - 1),
+                          }))
+                        }
+                        disabled={atMin}
+                        aria-label={`Decrease ${size}`}
+                        className={`h-11 w-11 inline-flex items-center justify-center rounded-lg border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                          minusActive
+                            ? "bg-red-600 text-white border-red-600 hover:bg-red-700"
+                            : "bg-white border-gray-200 text-gray-600 hover:bg-gray-100"
+                        }`}
+                      >
+                        <Minus size={18} />
+                      </button>
+                      <input
+                        type="number"
+                        min={0}
+                        max={mode === "remove" ? currentQty : undefined}
+                        value={value || ""}
+                        onChange={(e) => {
+                          const v = Math.max(0, parseInt(e.target.value) || 0);
+                          const capped = mode === "remove" ? Math.min(v, currentQty) : v;
+                          setQuantities((p) => ({ ...p, [size]: capped }));
+                        }}
+                        placeholder="0"
+                        aria-label={`Qty to ${mode} for ${size}`}
+                        className="h-11 w-16 text-center text-base font-medium border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setQuantities((p) => {
+                            const next = (p[size] ?? 0) + 1;
+                            const capped = mode === "remove" ? Math.min(next, currentQty) : next;
+                            return { ...p, [size]: capped };
+                          })
+                        }
+                        disabled={atMax}
+                        aria-label={`Increase ${size}`}
+                        className={`h-11 w-11 inline-flex items-center justify-center rounded-lg border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                          plusActive
+                            ? "bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700"
+                            : "bg-white border-gray-200 text-gray-600 hover:bg-gray-100"
+                        }`}
+                      >
+                        <Plus size={18} />
+                      </button>
+                    </div>
+                    <span
+                      className={`w-16 text-right text-xs font-medium tabular-nums ${
+                        isActive
+                          ? mode === "add"
+                            ? "text-emerald-700"
+                            : "text-red-700"
+                          : "text-gray-300"
+                      }`}
+                    >
+                      {isActive ? `\u2192 ${newQty}` : "\u2014"}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Notes + color-coded footer */}
+          {reason && (
+            <div className="space-y-2 pt-2">
+              <input
+                type="text"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Notes (e.g., PO #1234, vendor shipment)"
+                className="w-full text-base border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              {success ? (
+                <div className="flex items-center justify-center gap-2 py-3 text-emerald-700 bg-emerald-50 rounded-lg">
+                  <Check size={18} />
+                  <span className="text-sm font-medium">Stock Updated</span>
+                </div>
+              ) : (
+                <div
+                  className={`flex items-center gap-3 rounded-lg p-3 ${
+                    mode === "add"
+                      ? "bg-emerald-50"
+                      : mode === "remove"
+                        ? "bg-red-50"
+                        : "bg-blue-50"
+                  }`}
+                >
+                  <span
+                    className={`text-sm font-medium ${
+                      mode === "add"
+                        ? "text-emerald-900"
+                        : mode === "remove"
+                          ? "text-red-900"
+                          : "text-blue-900"
+                    }`}
+                  >
+                    {mode === "add" &&
+                      `Adding +${netChange} unit${netChange === 1 ? "" : "s"}`}
+                    {mode === "remove" &&
+                      `Removing \u2212${Math.abs(netChange)} unit${Math.abs(netChange) === 1 ? "" : "s"}`}
+                    {mode === "set" &&
+                      `Net change ${netChange > 0 ? "+" : ""}${netChange} unit${Math.abs(netChange) === 1 ? "" : "s"}`}
+                  </span>
+                  <span className="flex-1" />
+                  <button
+                    onClick={handleAdjust}
+                    disabled={!hasChange || submitting}
+                    className={`min-h-[44px] px-4 rounded-lg text-sm font-semibold text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                      mode === "add"
+                        ? "bg-emerald-600 hover:bg-emerald-700"
+                        : mode === "remove"
+                          ? "bg-red-600 hover:bg-red-700"
+                          : "bg-blue-600 hover:bg-blue-700"
+                    }`}
+                  >
+                    {submitting ? "Saving..." : "Apply"}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      ) : (
+        /* View mode — stock table (no adjust columns) */
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-200">
+                <th className="text-left py-2 px-2 text-xs font-medium text-gray-500 uppercase">Size</th>
+                <th className="text-right py-2 px-2 text-xs font-medium text-gray-500 uppercase">Qty</th>
+                <th className="text-left py-2 px-2 text-xs font-medium text-gray-500 uppercase">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sizeEntries.map(([size, stock]) => {
+                const threshold = stock.lowStockThreshold ?? item.lowStockThreshold ?? 5;
+                const status = getStockStatus(stock.qty, threshold);
+                return (
+                  <tr key={size} className="border-b border-gray-50 hover:bg-gray-50">
+                    <td className="py-2 px-2 font-medium text-gray-900">{size}</td>
+                    <td
+                      className={`py-2 px-2 text-right font-mono font-medium ${
+                        status === "out-of-stock"
+                          ? "text-red-600"
+                          : status === "low-stock"
+                            ? "text-amber-600"
+                            : "text-gray-900"
+                      }`}
+                    >
+                      {stock.qty}
+                    </td>
+                    <td className="py-2 px-2">
+                      <span
+                        className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
+                          status === "out-of-stock"
+                            ? "bg-red-100 text-red-700"
+                            : status === "low-stock"
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-emerald-100 text-emerald-700"
+                        }`}
+                      >
+                        {status === "out-of-stock" ? "Out" : status === "low-stock" ? "Low" : "OK"}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
@@ -637,6 +919,7 @@ function StockSection({ item, autoAdjust = false }: { item: Item; autoAdjust?: b
 function IssueSection({ item, onDone }: { item: Item; onDone: () => void }) {
   const { logisticsUser } = useAuthContext();
   const { members } = usePersonnel();
+  const toast = useToast();
   const [memberSearch, setMemberSearch] = useState("");
   const [selectedMember, setSelectedMember] = useState<Personnel | null>(null);
   const [selectedSize, setSelectedSize] = useState("");
@@ -646,10 +929,19 @@ function IssueSection({ item, onDone }: { item: Item; onDone: () => void }) {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
 
-  // Set default size
+  // Set default size — prefer first in-stock in canonical sort order, fall
+  // back to first sorted entry (even if OOS) so there's always a valid
+  // selection for the backorder flow.
   useEffect(() => {
-    const sizes = Object.keys(item.sizeMap || {});
-    setSelectedSize(sizes[0] ?? "one-size");
+    const sortedEntries = Object.entries(item.sizeMap || {}).sort(
+      ([a], [b]) => compareSizes(a, b),
+    );
+    const firstInStock = sortedEntries.find(
+      ([, s]) => safeQty(s?.qty) > 0,
+    );
+    setSelectedSize(
+      firstInStock?.[0] ?? sortedEntries[0]?.[0] ?? "one-size",
+    );
   }, [item]);
 
   // Pre-fill from member profile
@@ -684,8 +976,10 @@ function IssueSection({ item, onDone }: { item: Item; onDone: () => void }) {
     );
   }, [members, memberSearch]);
 
-  const sizes = Object.entries(item.sizeMap || {});
-  const stock = item.sizeMap?.[selectedSize]?.qty ?? 0;
+  const sizes = Object.entries(item.sizeMap || {}).sort(([a], [b]) =>
+    compareSizes(a, b),
+  );
+  const stock = safeQty(item.sizeMap?.[selectedSize]?.qty);
 
   async function handleSubmit() {
     if (!logisticsUser || !selectedMember) return;
@@ -712,6 +1006,9 @@ function IssueSection({ item, onDone }: { item: Item; onDone: () => void }) {
       setTimeout(onDone, 1500);
     } catch (err) {
       console.error("Issue failed:", err);
+      toast.error(
+        err instanceof Error ? err.message : "Failed to issue item.",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -784,14 +1081,14 @@ function IssueSection({ item, onDone }: { item: Item; onDone: () => void }) {
                     return;
                   }
                   setSelectedSize(val);
-                  const avail = item.sizeMap?.[val]?.qty ?? 0;
+                  const avail = safeQty(item.sizeMap?.[val]?.qty);
                   if (avail <= 0) setIsBackorder(true);
                 }}
                 className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 {sizes.map(([s, v]) => (
                   <option key={s} value={s}>
-                    {s} ({v.qty} avail)
+                    {s} ({safeQty(v?.qty)} avail)
                   </option>
                 ))}
                 <option value="__custom__">Other size...</option>
@@ -872,35 +1169,32 @@ function IssueSection({ item, onDone }: { item: Item; onDone: () => void }) {
   );
 }
 
-// ── Packing Locations Section ──
-function PackingSection({ item }: { item: Item }) {
-  const entries = Object.entries(item.packingLocations || {}).filter(([, qty]) => qty > 0);
-
-  if (entries.length === 0) {
-    return <p className="text-sm text-gray-400 italic py-4 text-center">No packing locations assigned</p>;
-  }
-
-  return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-3">
-      {entries.map(([key, qty]) => (
-        <div key={key} className="bg-gray-50 rounded-lg p-3">
-          <p className="text-xs text-gray-500">{PACKING_LABELS[key] || key}</p>
-          <p className="text-lg font-bold text-gray-900">{qty}</p>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ── Settings Section ──
 const ITEM_CATEGORIES: ItemCategory[] = [
   "bags", "patches", "boots", "bdus", "clothing", "ppe", "helmet", "sleeping", "personal",
 ];
 
 interface SizeRow {
+  /**
+   * Stable per-row ID used as the React `key` across re-renders. Survives
+   * `key` field edits (rename from "9 M" → "9.5 M") so React doesn't
+   * destroy the `<input>` DOM node underneath the user's fingers mid-type.
+   * Also survives re-sort: the sorted view runs on every render (see
+   * `sortedSizes` useMemo in EditItemForm), so rows can swap positions
+   * without losing focus or input state.
+   */
+  id: string;
   key: string;
   qty: number;
   lowStockThreshold: number | undefined;
+}
+
+// Module-scoped monotonic counter for SizeRow IDs. Doesn't reset across
+// EditItemForm mounts — not a problem, IDs only need to be unique within
+// a given render pass. `crypto.randomUUID()` was the alternative but would
+// break in non-secure contexts; a counter is simpler and deterministic.
+let sizeRowIdCounter = 1;
+function nextSizeRowId(): string {
+  return `sr-${sizeRowIdCounter++}`;
 }
 
 interface EditFormState {
@@ -948,42 +1242,22 @@ function initialFormState(item: Item): EditFormState {
     isIssuedByTeam: item.isIssuedByTeam,
     isActive: item.isActive,
     notes: item.notes ?? "",
-    sizes: Object.entries(item.sizeMap || {}).map(([k, v]) => ({
-      key: k,
-      qty: v.qty,
-      lowStockThreshold: v.lowStockThreshold,
-    })),
+    // Initial order: canonical (compareSizes) so the form opens sorted.
+    // The render-time sortedSizes useMemo re-applies this on every
+    // subsequent render to handle adds/renames.
+    sizes: Object.entries(item.sizeMap || {})
+      .sort(([a], [b]) => compareSizes(a, b))
+      .map(([k, v]) => ({
+        id: nextSizeRowId(),
+        key: k,
+        qty: safeQty(v?.qty),
+        lowStockThreshold: v.lowStockThreshold,
+      })),
   };
-}
-
-function SettingsSection({ item }: { item: Item }) {
-  const formatDate = (ts: { toDate?: () => Date } | null | undefined) => {
-    if (!ts || !ts.toDate) return "—";
-    return ts.toDate().toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    });
-  };
-
-  return (
-    <div className="space-y-3 pt-3">
-      <Row label="Manufacturer" value={item.manufacturer || "—"} />
-      <Row label="Model" value={item.model || "—"} />
-      <Row label="Description" value={item.description || "—"} />
-      <Row label="Notes" value={item.notes || "—"} />
-      <Row label="Low Stock Threshold" value={String(item.lowStockThreshold)} />
-      <Row label="Unit of Issue" value={item.unitOfIssue || "each"} />
-      <Row label="Status" value={item.isActive ? "Active" : "Inactive"} />
-      <Row label="Last Updated" value={formatDate(item.updatedAt)} />
-      <Row label="Created" value={formatDate(item.createdAt)} />
-    </div>
-  );
 }
 
 function EditItemForm({ item, onDone }: { item: Item; onDone: () => void }) {
+  const { logisticsUser } = useAuthContext();
   const [form, setForm] = useState<EditFormState>(() => initialFormState(item));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -997,26 +1271,49 @@ function EditItemForm({ item, onDone }: { item: Item; onDone: () => void }) {
     setForm((f) => ({ ...f, [field]: value }));
   }
 
-  function updateSize(idx: number, patch: Partial<SizeRow>) {
+  // All three helpers address rows by their stable `id` rather than by
+  // array index. Necessary because the render uses a sorted VIEW of
+  // `form.sizes` — a row's display position doesn't match its position
+  // in the underlying state array, so index-based updates would hit the
+  // wrong row after the user edits anything that changes sort order.
+  function updateSize(id: string, patch: Partial<SizeRow>) {
     setForm((f) => ({
       ...f,
-      sizes: f.sizes.map((s, i) => (i === idx ? { ...s, ...patch } : s)),
+      sizes: f.sizes.map((s) => (s.id === id ? { ...s, ...patch } : s)),
     }));
   }
 
   function addSize() {
     setForm((f) => ({
       ...f,
-      sizes: [...f.sizes, { key: "", qty: 0, lowStockThreshold: undefined }],
+      sizes: [
+        ...f.sizes,
+        { id: nextSizeRowId(), key: "", qty: 0, lowStockThreshold: undefined },
+      ],
     }));
   }
 
-  function removeSize(idx: number) {
-    setForm((f) => ({ ...f, sizes: f.sizes.filter((_, i) => i !== idx) }));
+  function removeSize(id: string) {
+    setForm((f) => ({ ...f, sizes: f.sizes.filter((s) => s.id !== id) }));
   }
+
+  // Sorted view used only for render. The underlying `form.sizes` array
+  // keeps whatever order edits produced; this useMemo re-sorts every time
+  // the array reference changes (i.e. on every edit/add/remove). Stable
+  // `id`-keyed rows mean React reconciles by identity rather than by
+  // position, so an input that moves due to re-sort preserves focus +
+  // cursor position mid-type. Sort cost is negligible (~15 entries).
+  const sortedSizes = useMemo(
+    () => [...form.sizes].sort((a, b) => compareSizes(a.key, b.key)),
+    [form.sizes],
+  );
 
   async function handleSave() {
     setError(null);
+    if (!logisticsUser) {
+      setError("You must be signed in to save changes.");
+      return;
+    }
     // Validation
     if (!form.name.trim()) {
       setError("Name is required.");
@@ -1066,7 +1363,15 @@ function EditItemForm({ item, onDone }: { item: Item; onDone: () => void }) {
         updatedAt: serverTimestamp(),
       };
       if (catalogCategory) patch.catalogCategory = catalogCategory;
-      await updateDoc(doc(db, "items", item.id), patch);
+      // commitItemEdit diffs before/patch and short-circuits on no-op saves
+      // (no write, no audit event). Either way we close the form — save
+      // semantics match the pre-audit behavior from the user's POV.
+      await commitItemEdit({
+        itemId: item.id,
+        before: item,
+        patch,
+        actor: logisticsUser,
+      });
       onDone();
     } catch (err) {
       console.error("Failed to save item:", err);
@@ -1273,12 +1578,15 @@ function EditItemForm({ item, onDone }: { item: Item; onDone: () => void }) {
               <span>Threshold</span>
               <span />
             </div>
-            {form.sizes.map((s, i) => (
-              <div key={i} className="grid grid-cols-[1fr_80px_80px_auto] gap-2 items-center">
+            {sortedSizes.map((s) => (
+              <div
+                key={s.id}
+                className="grid grid-cols-[1fr_80px_80px_auto] gap-2 items-center"
+              >
                 <input
                   type="text"
                   value={s.key}
-                  onChange={(e) => updateSize(i, { key: e.target.value })}
+                  onChange={(e) => updateSize(s.id, { key: e.target.value })}
                   placeholder="e.g. M or 32X30"
                   className="px-2 py-1 text-xs border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-navy-500"
                 />
@@ -1286,7 +1594,7 @@ function EditItemForm({ item, onDone }: { item: Item; onDone: () => void }) {
                   type="number"
                   min={0}
                   value={s.qty}
-                  onChange={(e) => updateSize(i, { qty: Number(e.target.value) })}
+                  onChange={(e) => updateSize(s.id, { qty: Number(e.target.value) })}
                   className="px-2 py-1 text-xs border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-navy-500"
                 />
                 <input
@@ -1294,7 +1602,7 @@ function EditItemForm({ item, onDone }: { item: Item; onDone: () => void }) {
                   min={0}
                   value={s.lowStockThreshold ?? ""}
                   onChange={(e) =>
-                    updateSize(i, {
+                    updateSize(s.id, {
                       lowStockThreshold: e.target.value === "" ? undefined : Number(e.target.value),
                     })
                   }
@@ -1302,7 +1610,7 @@ function EditItemForm({ item, onDone }: { item: Item; onDone: () => void }) {
                   className="px-2 py-1 text-xs border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-navy-500"
                 />
                 <button
-                  onClick={() => removeSize(i)}
+                  onClick={() => removeSize(s.id)}
                   className="p-1 text-slate-400 hover:text-red-500 transition-colors"
                   title="Remove size"
                 >
@@ -1343,158 +1651,3 @@ function EditItemForm({ item, onDone }: { item: Item; onDone: () => void }) {
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-start justify-between text-sm py-1 border-b border-gray-50">
-      <span className="text-gray-500">{label}</span>
-      <span className="text-gray-900 font-medium text-right max-w-[60%]">{value}</span>
-    </div>
-  );
-}
-
-// ── Activity Section ──────────────────────────────────────────────────
-function formatActivityTime(ts: { toDate?: () => Date } | undefined): string {
-  if (!ts?.toDate) return "—";
-  const d = ts.toDate();
-  const diffMs = Date.now() - d.getTime();
-  const mins = Math.floor(diffMs / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  if (days < 7) return `${days}d ago`;
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-}
-
-function formatFullTimestamp(ts: { toDate?: () => Date } | undefined): string {
-  if (!ts?.toDate) return "";
-  return ts.toDate().toLocaleString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
-interface ActivityEntry {
-  txId: string;
-  timestamp: Transaction["timestamp"];
-  actorName: string;
-  personnelName: string | null;
-  type: Transaction["type"];
-  sourceForm: string | undefined;
-  notes: string | undefined;
-  size: string | null;
-  qty: number;
-  isBackorder: boolean;
-}
-
-function activityLabel(entry: ActivityEntry): { label: string; color: string; sign: string } {
-  // Stock adjustments have null personnelId and sourceForm="stock_adjust"
-  if (entry.sourceForm === "stock_adjust") {
-    if (entry.qty > 0) return { label: "Received", color: "bg-emerald-100 text-emerald-700", sign: "+" };
-    return { label: "Adjusted", color: "bg-amber-100 text-amber-700", sign: "" };
-  }
-  if (entry.type === "return") return { label: "Returned", color: "bg-blue-100 text-blue-700", sign: "+" };
-  if (entry.type === "exchange") return { label: "Exchanged", color: "bg-purple-100 text-purple-700", sign: "" };
-  if (entry.type === "ocr_import") return { label: "Imported", color: "bg-slate-100 text-slate-700", sign: "+" };
-  // onboarding_issue / single_issue
-  return { label: "Issued", color: "bg-red-50 text-red-700", sign: "-" };
-}
-
-function ActivitySection({ item }: { item: Item }) {
-  const [entries, setEntries] = useState<ActivityEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    setLoading(true);
-    const q = query(transactionsRef, orderBy("timestamp", "desc"), limit(200));
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        const list: ActivityEntry[] = [];
-        for (const d of snap.docs) {
-          const tx = { ...d.data(), id: d.id } as Transaction;
-          for (const ti of tx.items) {
-            if (ti.itemId !== item.id) continue;
-            list.push({
-              txId: tx.id,
-              timestamp: tx.timestamp,
-              actorName: tx.issuedByName,
-              personnelName: tx.personnelName,
-              type: tx.type,
-              sourceForm: tx.sourceForm,
-              notes: tx.notes,
-              size: ti.size,
-              qty: ti.qtyIssued,
-              isBackorder: ti.isBackorder,
-            });
-          }
-        }
-        setEntries(list);
-        setLoading(false);
-      },
-      (err) => {
-        console.error("Failed to load activity:", err);
-        setLoading(false);
-      },
-    );
-    return unsub;
-  }, [item.id]);
-
-  if (loading) {
-    return <p className="text-sm text-gray-400 text-center py-4">Loading activity…</p>;
-  }
-  if (entries.length === 0) {
-    return <p className="text-sm text-gray-400 text-center py-4">No activity recorded for this item.</p>;
-  }
-
-  return (
-    <div className="divide-y divide-gray-100">
-      {entries.map((e) => {
-        const { label, color, sign } = activityLabel(e);
-        return (
-          <div key={`${e.txId}::${e.size}::${e.qty}`} className="py-2">
-            <div className="flex items-start gap-3">
-              <span className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${color}`}>
-                {label}
-              </span>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-baseline gap-2 text-sm text-gray-900">
-                  <span className="font-semibold">
-                    {sign}
-                    {Math.abs(e.qty)}
-                  </span>
-                  {e.size && <span className="text-xs text-gray-500">size {e.size}</span>}
-                  {e.isBackorder && (
-                    <span className="text-[10px] bg-orange-100 text-orange-700 rounded px-1">
-                      backorder
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  by <span className="font-medium text-gray-700">{e.actorName}</span>
-                  {e.personnelName && (
-                    <>
-                      {" → "}
-                      <span className="font-medium text-gray-700">{e.personnelName}</span>
-                    </>
-                  )}
-                </p>
-                {e.notes && <p className="text-xs text-gray-500 italic mt-0.5 truncate">"{e.notes}"</p>}
-              </div>
-              <span
-                className="text-xs text-gray-400 shrink-0"
-                title={formatFullTimestamp(e.timestamp)}
-              >
-                {formatActivityTime(e.timestamp)}
-              </span>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}

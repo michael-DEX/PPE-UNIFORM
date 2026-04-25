@@ -6,6 +6,10 @@ import { commitIssue } from "../../lib/issueCommit";
 import Modal from "../../components/ui/Modal";
 import Button from "../../components/ui/Button";
 import SearchInput from "../../components/ui/SearchInput";
+import { useToast } from "../../components/ui/Toast";
+import { compareSizes } from "../../lib/sizeOrder";
+import { safeQty } from "../../lib/qty";
+import { subtitleFromItem } from "../../lib/itemSubtitle";
 import type { Item, Personnel } from "../../types";
 
 interface Props {
@@ -17,6 +21,7 @@ interface Props {
 export default function QuickIssueModal({ item, open, onClose }: Props) {
   const { logisticsUser } = useAuthContext();
   const { members } = usePersonnel();
+  const toast = useToast();
   const [memberSearch, setMemberSearch] = useState("");
   const [selectedMember, setSelectedMember] = useState<Personnel | null>(null);
   const [selectedSize, setSelectedSize] = useState("");
@@ -31,8 +36,18 @@ export default function QuickIssueModal({ item, open, onClose }: Props) {
     if (item) {
       setSelectedMember(null);
       setMemberSearch("");
-      const sizes = Object.keys(item.sizeMap || {});
-      setSelectedSize(sizes[0] ?? "one-size");
+      // Default to first IN-STOCK size in canonical sort order. Fall back
+      // to the first sorted size (even if OOS) so the form has a valid
+      // selection; backorder toggle will naturally engage for OOS.
+      const sortedEntries = Object.entries(item.sizeMap || {}).sort(
+        ([a], [b]) => compareSizes(a, b),
+      );
+      const firstInStock = sortedEntries.find(
+        ([, s]) => safeQty(s?.qty) > 0,
+      );
+      setSelectedSize(
+        firstInStock?.[0] ?? sortedEntries[0]?.[0] ?? "one-size",
+      );
       setQty(1);
       setIsBackorder(false);
       setNotes("");
@@ -81,8 +96,10 @@ export default function QuickIssueModal({ item, open, onClose }: Props) {
 
   if (!item) return null;
 
-  const sizes = Object.entries(item.sizeMap || {});
-  const stock = item.sizeMap?.[selectedSize]?.qty ?? 0;
+  const sizes = Object.entries(item.sizeMap || {}).sort(([a], [b]) =>
+    compareSizes(a, b),
+  );
+  const stock = safeQty(item.sizeMap?.[selectedSize]?.qty);
 
   async function handleSubmit() {
     if (!logisticsUser || !selectedMember || !item) return;
@@ -109,13 +126,22 @@ export default function QuickIssueModal({ item, open, onClose }: Props) {
       setTimeout(onClose, 1500);
     } catch (err) {
       console.error("Quick issue failed:", err);
+      toast.error(
+        err instanceof Error ? err.message : "Failed to issue item.",
+      );
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={`Issue: ${item.name}`} wide>
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={`Issue: ${item.name}`}
+      subtitle={subtitleFromItem(item)}
+      wide
+    >
       {success ? (
         <div className="text-center py-8">
           <div className="w-14 h-14 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-3">

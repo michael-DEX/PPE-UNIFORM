@@ -4,6 +4,47 @@ import { GoogleGenAI } from "@google/genai";
 
 const geminiApiKey = defineSecret("GEMINI_API_KEY");
 
+// Reject payloads over ~7 MiB of base64 (≈5 MiB image). Gemini refuses larger
+// inline images anyway and this stops us burning quota on garbage.
+const MAX_BASE64_LEN = 7 * 1024 * 1024;
+const VALID_MIMES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+]);
+
+function validateParseInput(raw: unknown): {
+  imageBase64: string;
+  mimeType: string;
+} {
+  if (!raw || typeof raw !== "object") {
+    throw new HttpsError("invalid-argument", "Request body must be an object");
+  }
+  const { imageBase64, mimeType } = raw as Record<string, unknown>;
+
+  if (typeof imageBase64 !== "string" || imageBase64.length === 0) {
+    throw new HttpsError(
+      "invalid-argument",
+      "imageBase64 must be a non-empty string",
+    );
+  }
+  if (imageBase64.length > MAX_BASE64_LEN) {
+    throw new HttpsError("invalid-argument", "Image is too large (max ~5 MiB)");
+  }
+  // Base64-url-safe + standard charset. Allow trailing = padding.
+  if (!/^[A-Za-z0-9+/_-]+=*$/.test(imageBase64)) {
+    throw new HttpsError("invalid-argument", "imageBase64 is not valid base64");
+  }
+
+  const mime =
+    typeof mimeType === "string" && VALID_MIMES.has(mimeType)
+      ? mimeType
+      : "image/jpeg";
+
+  return { imageBase64, mimeType: mime };
+}
+
 // Known item names for matching — these are the items in the CA-TF2 inventory
 const KNOWN_ITEMS = [
   "Large Roller Bag (90 lbs. MAX)",
@@ -105,17 +146,7 @@ export const parsePackingSlip = onCall(
       throw new HttpsError("unauthenticated", "Must be authenticated");
     }
 
-    const { imageBase64, mimeType } = request.data as {
-      imageBase64: string;
-      mimeType: string;
-    };
-
-    if (!imageBase64) {
-      throw new HttpsError("invalid-argument", "imageBase64 is required");
-    }
-
-    const validMimes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-    const mime = validMimes.includes(mimeType) ? mimeType : "image/jpeg";
+    const { imageBase64, mimeType: mime } = validateParseInput(request.data);
 
     const ai = new GoogleGenAI({ apiKey: geminiApiKey.value() });
 

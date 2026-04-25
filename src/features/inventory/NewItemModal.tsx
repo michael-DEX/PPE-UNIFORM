@@ -7,8 +7,10 @@
 
 import { useState } from "react";
 import { X, Plus, Check } from "lucide-react";
-import { doc, setDoc, serverTimestamp, getDoc } from "firebase/firestore";
+import { doc, serverTimestamp, getDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
+import { commitItemCreate } from "../../lib/itemCreateCommit";
+import { useAuthContext } from "../../app/AuthProvider";
 import { CATALOG_TREE } from "../../constants/catalogCategories";
 import type { ItemCategory, PackingLocations } from "../../types";
 
@@ -81,6 +83,7 @@ interface Props {
 }
 
 export default function NewItemModal({ open, onClose, onCreated }: Props) {
+  const { logisticsUser } = useAuthContext();
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -115,6 +118,10 @@ export default function NewItemModal({ open, onClose, onCreated }: Props) {
 
   async function handleCreate() {
     setError(null);
+    if (!logisticsUser) {
+      setError("You must be signed in to create an item.");
+      return;
+    }
     if (!form.name.trim()) {
       setError("Name is required.");
       return;
@@ -178,7 +185,7 @@ export default function NewItemModal({ open, onClose, onCreated }: Props) {
       if (form.description.trim()) payload.description = form.description.trim();
       if (form.notes.trim()) payload.notes = form.notes.trim();
 
-      await setDoc(doc(db, "items", docId), payload);
+      await commitItemCreate({ itemId: docId, payload, actor: logisticsUser });
       onCreated?.(docId);
       resetAndClose();
     } catch (err) {

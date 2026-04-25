@@ -48,8 +48,22 @@ export interface Item {
   model?: string;
   description?: string;
   squareCategory?: string;
-  category: ItemCategory;
-  catalogCategory?: CatalogCategory;
+  /**
+   * Legacy category. Was a narrow `ItemCategory` enum; widened to `string`
+   * so admins can type new category labels via the inline-create UX in
+   * the New Item / Edit Item forms. The `ItemCategory` union still exists
+   * below as documentation of the original built-in values, but is no
+   * longer used to constrain this field.
+   */
+  category: string;
+  /**
+   * Catalog category (newer hierarchy). Was `CatalogCategory` enum; widened
+   * to `string` for the same inline-create reason. Built-in catalog ids
+   * use `-` as a separator (e.g., `clothing-bdus`); user-created entries
+   * use `|` (e.g., `clothing|chest_rigs`) — see `categoryMatches` in
+   * src/constants/catalogCategories.ts for the matching logic.
+   */
+  catalogCategory?: string;
   isIssuedByTeam: boolean;
   isActive: boolean;
   unitOfIssue: string;
@@ -102,7 +116,21 @@ export type TransactionType =
   | "single_issue"
   | "return"
   | "exchange"
-  | "ocr_import";
+  | "ocr_import"
+  | "receive"
+  | "adjust";
+
+/**
+ * Physical state of a returned item.
+ *   - "good"     → goes back into stock (sizeMap qty incremented)
+ *   - "damaged"  → logged but NOT restocked (written off)
+ *   - "lost"     → logged but NOT restocked (written off)
+ *
+ * Only meaningful on `return`-type transactions. Absent / undefined on every
+ * other transaction type. On returns, an absent value is treated as "good"
+ * by commitReturn for backwards compat with any pre-feature return docs.
+ */
+export type ItemCondition = "good" | "damaged" | "lost";
 
 export interface TransactionItem {
   itemId: string;
@@ -110,6 +138,8 @@ export interface TransactionItem {
   size: string | null;
   qtyIssued: number;
   isBackorder: boolean;
+  /** Only set on `return` transactions. See ItemCondition. */
+  condition?: ItemCondition;
 }
 
 export interface Transaction {
@@ -188,7 +218,18 @@ export interface OrderList {
 }
 
 // ── Audit Log ──
-export type AuditEventType = "issue" | "receive" | "return" | "adjust" | "scan";
+export type AuditEventType =
+  | "issue"
+  | "receive"
+  | "return"
+  | "adjust"
+  | "scan"
+  | "login"
+  | "logout"
+  | "item_create"
+  | "item_edit"
+  | "item_delete"
+  | "onboarding_template_edit";
 
 export interface AuditItem {
   itemId: string;
@@ -197,6 +238,40 @@ export interface AuditItem {
   qtyBefore: number;
   qtyAfter: number;
   delta: number;
+}
+
+/**
+ * Structured diff between a pre-edit `Item` and the patch written to
+ * Firestore. Stamped on `item_edit` audit events so reviewers can see
+ * exactly what changed without re-fetching the previous doc state.
+ *
+ *   - `scalars`: per-field before/after for the 13 user-editable scalar
+ *     fields on `Item` (name, manufacturer, flags, numeric thresholds, etc.)
+ *   - `sizeMap`: add/remove/modify operations on the `Item.sizeMap` record
+ *
+ * Both arrays may be empty on a given event. Empty on both = commitItemEdit
+ * short-circuits and writes nothing (no-op save). Defined in types rather
+ * than lib/audit.ts because `AuditEvent` (read side) references it and
+ * types must not import from lib.
+ */
+export interface ItemChanges {
+  scalars: Array<{
+    field: string;
+    before: unknown;
+    after: unknown;
+  }>;
+  sizeMap: Array<
+    | { op: "add"; size: string; qty: number; lowStockThreshold?: number | null }
+    | { op: "remove"; size: string; qtyBefore: number }
+    | {
+        op: "modify";
+        size: string;
+        qtyBefore: number;
+        qtyAfter: number;
+        thresholdBefore: number | null;
+        thresholdAfter: number | null;
+      }
+  >;
 }
 
 export interface AuditEvent {
@@ -209,8 +284,41 @@ export interface AuditEvent {
   personnelId: string | null;
   personnelName: string | null;
   action: string;
-  transactionId: string;
-  items: AuditItem[];
+  /** Present on commit-style events (issue/receive/return/adjust/scan).
+   *  Access events (login/logout) omit it — they're not tied to a transaction. */
+  transactionId?: string;
+  /**
+   * The specific `TransactionType` that produced this audit event, when one
+   * exists — e.g. `"onboarding_issue"` vs `"single_issue"` for `type: "issue"`
+   * events. Keeps the granular distinction available to future audit queries
+   * without breaking the broader `type` filter tabs on the Audit Log page.
+   * Absent on access events (login/logout) and on older events written before
+   * this field was introduced. */
+  transactionType?: TransactionType;
+  /** Same optional contract as transactionId — only commit events carry items. */
+  items?: AuditItem[];
+  /**
+   * Structured diff for `item_edit` events. Empty arrays on both `scalars`
+   * and `sizeMap` means nothing actually changed — in which case
+   * commitItemEdit short-circuits and no event is written at all. */
+  changes?: ItemChanges;
+  /**
+   * Full `Item` snapshot for `item_create` and `item_delete` events — the
+   * item as created, or the item at the moment of deletion. Includes `id`
+   * even though `items/{id}` docs don't carry an `id` field in the body
+   * (the ID lives in the Firestore path), so the audit event is
+   * self-contained for forensic lookup. */
+  snapshot?: Item;
+  /**
+   * Before/after snapshots of the onboarding template `itemIds` array for
+   * `onboarding_template_edit` events. One event per Save (not per
+   * add/remove/reorder mutation), so a reviewer can diff before vs. after
+   * to reconstruct exactly what changed. Absent on all non-template
+   * event types. */
+  templateChange?: {
+    before: string[];
+    after: string[];
+  };
 }
 
 // ── Logistics Users ──

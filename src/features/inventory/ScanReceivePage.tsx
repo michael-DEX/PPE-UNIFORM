@@ -14,6 +14,7 @@ import {
 import { useAuthContext } from "../../app/AuthProvider";
 import { useInventory } from "../../hooks/useInventory";
 import { commitStockAdjust } from "../../lib/stockCommit";
+import { subtitleFromItem } from "../../lib/itemSubtitle";
 import Button from "../../components/ui/Button";
 import Spinner from "../../components/ui/Spinner";
 import type { Item } from "../../types";
@@ -477,6 +478,18 @@ export default function ScanReceivePage() {
                               <span className="inline-block px-2 py-0.5 text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full">
                                 {si.matchedName}
                               </span>
+                              {(() => {
+                                const subtitle = subtitleFromItem(
+                                  firestoreItems.find(
+                                    (i) => i.id === si.matchedItemId,
+                                  ),
+                                );
+                                return subtitle ? (
+                                  <p className="text-xs text-slate-500 mt-1 truncate">
+                                    {subtitle}
+                                  </p>
+                                ) : null;
+                              })()}
                               {si.name && si.name !== si.matchedName && (
                                 <p className="text-xs text-slate-400 mt-1 truncate">
                                   OCR: {si.name}

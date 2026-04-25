@@ -1,4 +1,6 @@
 import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "../../lib/firebase";
 import type { CartItem, Personnel, Item } from "../../types";
 import { ITEMS_MASTER } from "../../constants/itemsMaster";
 import { ONBOARDING_TEMPLATE_ITEM_NAMES } from "../../constants/onboardingTemplate";
@@ -74,27 +76,102 @@ export function IssueCartProvider({ children }: { children: ReactNode }) {
   const loadTemplate = useCallback(
     (firestoreItems: Item[], mem: Personnel) => {
       setMember(mem);
-      const items: CartItem[] = [];
 
-      for (const templateName of ONBOARDING_TEMPLATE_ITEM_NAMES) {
-        const masterEntry = ITEMS_MASTER.find((m) => m.name === templateName);
-        const fsItem = firestoreItems.find((i) => i.name === templateName);
-        if (!fsItem || !masterEntry) continue;
+      // ── Builders ────────────────────────────────────────────────────
+      //
+      // Two paths produce the cart seed:
+      //   - Firestore path: doc exists + has itemIds → ID-joined, rename-safe
+      //   - Hardcoded path: legacy dual lookup by name against
+      //     ONBOARDING_TEMPLATE_ITEM_NAMES + ITEMS_MASTER. This is the
+      //     grace-period fallback until the admin seeds the doc via the
+      //     Settings page (phase 2B). Both paths produce identical
+      //     CartItem shapes so the UI doesn't know which ran.
 
-        // Load with qty=0 and no size — logistics person fills in manually
-        items.push({
-          itemId: fsItem.id,
-          itemName: fsItem.name,
-          size: null,
-          qty: 0,
-          isBackorder: false,
-          qtyBefore: 0,
-          needsSize: masterEntry.needsSize ?? false,
-          suggestedQty: masterEntry.qtyRequired || 1,
+      const buildFromFirestoreIds = (itemIds: string[]): CartItem[] => {
+        const seeded: CartItem[] = [];
+        for (const itemId of itemIds) {
+          const fsItem = firestoreItems.find((i) => i.id === itemId);
+          // Silent skip for itemIds pointing to deleted/missing catalog docs.
+          // The Settings editor surfaces a "⚠ N items missing" badge for
+          // admins; onboarding just ignores them at seed time.
+          if (!fsItem) continue;
+          // ITEMS_MASTER lookup by item NAME for needsSize / qtyRequired
+          // defaults. Works today because recon confirmed template ↔
+          // ITEMS_MASTER are fully in sync. If an admin adds an item via
+          // Settings that isn't in ITEMS_MASTER, we fall back to the live
+          // Item's own fields (both optional on Item), else sensible
+          // defaults (no-size, qty=1). Cleanup after the Settings UI
+          // stabilizes will remove ITEMS_MASTER dependency entirely.
+          const masterEntry = ITEMS_MASTER.find((m) => m.name === fsItem.name);
+          seeded.push({
+            itemId: fsItem.id,
+            itemName: fsItem.name,
+            size: null,
+            qty: 0,
+            isBackorder: false,
+            qtyBefore: 0,
+            needsSize:
+              masterEntry?.needsSize ?? fsItem.needsSize ?? false,
+            suggestedQty:
+              masterEntry?.qtyRequired ?? fsItem.qtyRequired ?? 1,
+          });
+        }
+        return seeded;
+      };
+
+      const buildFromHardcoded = (): CartItem[] => {
+        const seeded: CartItem[] = [];
+        for (const templateName of ONBOARDING_TEMPLATE_ITEM_NAMES) {
+          const masterEntry = ITEMS_MASTER.find((m) => m.name === templateName);
+          const fsItem = firestoreItems.find((i) => i.name === templateName);
+          if (!fsItem || !masterEntry) continue;
+
+          seeded.push({
+            itemId: fsItem.id,
+            itemName: fsItem.name,
+            size: null,
+            qty: 0,
+            isBackorder: false,
+            qtyBefore: 0,
+            needsSize: masterEntry.needsSize ?? false,
+            suggestedQty: masterEntry.qtyRequired || 1,
+          });
+        }
+        return seeded;
+      };
+
+      // ── Fetch + dispatch ────────────────────────────────────────────
+      //
+      // Non-async outer signature (callers are synchronous — handleCreateMember
+      // calls loadTemplate then immediately setStep(1), so we can't block
+      // them). The `getDoc` resolves asynchronously and calls setCartItems
+      // when it does. During the brief window before it resolves, cartItems
+      // is still its previous value (empty on first load, which renders as
+      // "loading gear…" style empty state — same as today if the template
+      // were slow to build).
+      getDoc(doc(db, "app_config", "onboarding_template"))
+        .then((snap) => {
+          const data = snap.exists() ? snap.data() : null;
+          const itemIds =
+            data && Array.isArray(data.itemIds)
+              ? (data.itemIds as string[])
+              : null;
+          if (itemIds && itemIds.length > 0) {
+            setCartItems(buildFromFirestoreIds(itemIds));
+          } else {
+            console.info(
+              "[loadTemplate] Firestore doc not found, using hardcoded fallback",
+            );
+            setCartItems(buildFromHardcoded());
+          }
+        })
+        .catch((err) => {
+          console.warn(
+            "[loadTemplate] Firestore read failed, using hardcoded fallback:",
+            err,
+          );
+          setCartItems(buildFromHardcoded());
         });
-      }
-
-      setCartItems(items);
     },
     []
   );

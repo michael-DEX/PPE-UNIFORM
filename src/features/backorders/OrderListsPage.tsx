@@ -21,6 +21,8 @@ import Button from "../../components/ui/Button";
 import EmptyState from "../../components/ui/EmptyState";
 import { Plus, FileDown, Printer, Trash2, Package, Check, Search, FolderTree, PenLine, ArrowLeft } from "lucide-react";
 import { CATALOG_TREE, categoryMatches, getCategoryLabel } from "../../constants/catalogCategories";
+import { compareSizes } from "../../lib/sizeOrder";
+import { subtitleFromItem } from "../../lib/itemSubtitle";
 import type { OrderList, OrderListItem, Item } from "../../types";
 
 // ── Helpers ──
@@ -332,13 +334,28 @@ function OrderListDetail({
                 </td>
               </tr>
             ) : (
-              list.items.map((item, idx) => (
+              list.items.map((item, idx) => {
+                // Lookup the full catalog item for mfr/model subtitle. If the
+                // item was deleted from the catalog, we fall back gracefully
+                // to just the name (helper returns "" → subtitle row omitted).
+                const catalogItem = inventoryItems.find(
+                  (i) => i.id === item.itemId,
+                );
+                const subtitle = subtitleFromItem(catalogItem);
+                return (
                 <tr
                   key={`${item.itemId}-${item.size}-${idx}`}
                   className="border-b border-slate-100 hover:bg-slate-50 transition-colors"
                 >
-                  <td className="px-4 py-3 font-medium text-slate-900">
-                    {item.itemName}
+                  <td className="px-4 py-3 min-w-0">
+                    <p className="font-medium text-slate-900 truncate">
+                      {item.itemName}
+                    </p>
+                    {subtitle && (
+                      <p className="text-xs text-slate-500 truncate mt-0.5">
+                        {subtitle}
+                      </p>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-slate-600">
                     {item.size ?? "\u2014"}
@@ -359,7 +376,8 @@ function OrderListDetail({
                     </button>
                   </td>
                 </tr>
-              ))
+                );
+              })
             )}
           </tbody>
         </table>
@@ -404,7 +422,9 @@ function AddItemRow({
   // Custom mode state
   const [customName, setCustomName] = useState("");
 
-  const sizes = selectedItem ? Object.keys(selectedItem.sizeMap || {}) : [];
+  const sizes = selectedItem
+    ? Object.keys(selectedItem.sizeMap || {}).sort((a, b) => compareSizes(a, b))
+    : [];
 
   // Search results
   const searchResults = useMemo(() => {
@@ -539,18 +559,28 @@ function AddItemRow({
               />
               {showDropdown && searchResults.length > 0 && (
                 <div className="absolute z-20 top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                  {searchResults.map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => selectItem(item)}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 transition-colors border-b border-slate-50 last:border-0"
-                    >
-                      <span className="font-medium">{item.name}</span>
-                      <span className="text-slate-400 ml-2 text-xs">
-                        {getCategoryLabel(item.catalogCategory || item.category)}
-                      </span>
-                    </button>
-                  ))}
+                  {searchResults.map((item) => {
+                    const subtitle = subtitleFromItem(item);
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => selectItem(item)}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 transition-colors border-b border-slate-50 last:border-0"
+                      >
+                        <div className="flex items-baseline gap-2">
+                          <span className="font-medium truncate">{item.name}</span>
+                          <span className="text-slate-400 text-xs shrink-0">
+                            {getCategoryLabel(item.catalogCategory || item.category)}
+                          </span>
+                        </div>
+                        {subtitle && (
+                          <p className="text-xs text-slate-500 truncate mt-0.5">
+                            {subtitle}
+                          </p>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
               {showDropdown && search.length >= 2 && searchResults.length === 0 && (

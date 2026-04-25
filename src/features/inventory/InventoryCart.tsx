@@ -1,11 +1,14 @@
 import { useState, useMemo } from "react";
 import { X, Trash2, ShoppingCart, Check, Minus, Plus } from "lucide-react";
 import { usePersonnel } from "../../hooks/usePersonnel";
+import { useInventory } from "../../hooks/useInventory";
 import { useAuthContext } from "../../app/AuthProvider";
 import { commitIssue } from "../../lib/issueCommit";
+import { subtitleFromItem } from "../../lib/itemSubtitle";
 import SearchInput from "../../components/ui/SearchInput";
 import Button from "../../components/ui/Button";
 import Badge from "../../components/ui/Badge";
+import { useToast } from "../../components/ui/Toast";
 import type { Personnel, CartItem } from "../../types";
 
 interface InventoryCartProps {
@@ -27,11 +30,20 @@ export default function InventoryCart({
 }: InventoryCartProps) {
   const { logisticsUser } = useAuthContext();
   const { members } = usePersonnel();
+  const { items: inventoryItems } = useInventory();
+  const toast = useToast();
   const [memberSearch, setMemberSearch] = useState("");
   const [selectedMember, setSelectedMember] = useState<Personnel | null>(null);
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+
+  // Total units across all cart lines — all user-facing counts in this drawer
+  // show total qty rather than the number of distinct size rows.
+  const cartTotalQty = useMemo(
+    () => cartItems.reduce((sum, ci) => sum + ci.qty, 0),
+    [cartItems],
+  );
 
   const filteredMembers = useMemo(() => {
     if (!memberSearch) return members.filter((m) => m.isActive).slice(0, 6);
@@ -48,7 +60,7 @@ export default function InventoryCart({
   }, [members, memberSearch]);
 
   async function handleCheckout() {
-    if (!logisticsUser || cartItems.length === 0) return;
+    if (!logisticsUser || cartTotalQty === 0) return;
     // Backorders require a recipient — block checkout if any item is backordered but no member selected
     if (!selectedMember && cartItems.some((ci) => ci.isBackorder)) {
       console.warn("Backordered items require a recipient.");
@@ -74,6 +86,9 @@ export default function InventoryCart({
       }, 1500);
     } catch (err) {
       console.error("Cart issue failed:", err);
+      toast.error(
+        err instanceof Error ? err.message : "Failed to issue items from cart.",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -92,7 +107,7 @@ export default function InventoryCart({
             <h2 className="text-lg font-semibold text-slate-900">
               Issue Cart
             </h2>
-            <Badge>{cartItems.length}</Badge>
+            <Badge>{cartTotalQty}</Badge>
           </div>
           <button
             onClick={onClose}
@@ -111,7 +126,7 @@ export default function InventoryCart({
               Issue Complete
             </p>
             <p className="text-sm text-slate-500 mt-1">
-              {cartItems.length} items issued
+              {cartTotalQty} items issued
               {selectedMember ? ` to ${selectedMember.firstName} ${selectedMember.lastName}` : " (no recipient)"}
             </p>
           </div>
@@ -119,7 +134,7 @@ export default function InventoryCart({
           <>
             {/* Cart items */}
             <div className="flex-1 overflow-y-auto">
-              {cartItems.length === 0 ? (
+              {cartTotalQty === 0 ? (
                 <div className="text-center py-12 text-slate-400">
                   <ShoppingCart size={32} className="mx-auto mb-2 opacity-50" />
                   <p className="text-sm">Cart is empty</p>
@@ -127,7 +142,15 @@ export default function InventoryCart({
                 </div>
               ) : (
                 <div className="divide-y divide-slate-100">
-                  {cartItems.map((ci) => (
+                  {cartItems.map((ci) => {
+                    // Lookup catalog item for mfr/model subtitle. If the
+                    // item was deleted from the catalog after being added
+                    // to cart, helper gracefully returns "".
+                    const catalogItem = inventoryItems.find(
+                      (i) => i.id === ci.itemId,
+                    );
+                    const subtitle = subtitleFromItem(catalogItem);
+                    return (
                     <div
                       key={`${ci.itemId}::${ci.size}`}
                       className="px-5 py-3 flex items-center gap-3"
@@ -136,6 +159,11 @@ export default function InventoryCart({
                         <p className="text-sm font-medium text-slate-900 truncate">
                           {ci.itemName}
                         </p>
+                        {subtitle && (
+                          <p className="text-xs text-slate-500 truncate mt-0.5">
+                            {subtitle}
+                          </p>
+                        )}
                         <p className="text-xs text-slate-400">
                           {ci.size || "one-size"}
                         </p>
@@ -147,40 +175,44 @@ export default function InventoryCart({
                       </div>
                       <div className="flex items-center gap-1.5">
                         <button
+                          aria-label="Decrease quantity"
                           onClick={() =>
                             onUpdateQty(ci.itemId, ci.size, ci.qty - 1)
                           }
                           disabled={ci.qty <= 1}
-                          className="p-1 text-slate-400 hover:text-slate-600 disabled:opacity-30"
+                          className="h-11 w-11 inline-flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
                         >
-                          <Minus size={14} />
+                          <Minus size={20} />
                         </button>
-                        <span className="w-6 text-center text-sm font-medium">
+                        <span className="w-8 text-center text-base font-medium tabular-nums">
                           {ci.qty}
                         </span>
                         <button
+                          aria-label="Increase quantity"
                           onClick={() =>
                             onUpdateQty(ci.itemId, ci.size, ci.qty + 1)
                           }
-                          className="p-1 text-slate-400 hover:text-slate-600"
+                          className="h-11 w-11 inline-flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700"
                         >
-                          <Plus size={14} />
+                          <Plus size={20} />
                         </button>
                       </div>
                       <button
+                        aria-label={`Remove ${ci.itemName} from cart`}
                         onClick={() => onRemove(ci.itemId, ci.size)}
-                        className="p-1 text-slate-400 hover:text-red-500"
+                        className="h-11 w-11 inline-flex items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600"
                       >
-                        <Trash2 size={14} />
+                        <Trash2 size={20} />
                       </button>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
 
             {/* Member selection + checkout */}
-            {cartItems.length > 0 && (
+            {cartTotalQty > 0 && (
               <div className="border-t border-slate-200 px-5 py-4 space-y-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">
@@ -251,7 +283,7 @@ export default function InventoryCart({
                 >
                   {submitting
                     ? "Processing..."
-                    : `Issue ${cartItems.length} Item${cartItems.length > 1 ? "s" : ""}${!selectedMember ? " (no recipient)" : ""}`}
+                    : `Issue ${cartTotalQty} Item${cartTotalQty !== 1 ? "s" : ""}${!selectedMember ? " (no recipient)" : ""}`}
                 </Button>
               </div>
             )}

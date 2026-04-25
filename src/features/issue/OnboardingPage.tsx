@@ -1,25 +1,50 @@
-import { useState, useMemo, useEffect, useRef, useCallback, type FormEvent } from "react";
+import {
+  useState,
+  useMemo,
+  useEffect,
+  useRef,
+  useCallback,
+  type FormEvent,
+} from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { doc, setDoc, getDoc, getDocs, updateDoc, serverTimestamp, collection, query, where } from "firebase/firestore";
-import { UserPlus, ArrowRight, Check, ChevronDown, ChevronRight, Cloud, Loader2, Plus, X } from "lucide-react";
+import {
+  doc,
+  setDoc,
+  getDoc,
+  getDocs,
+  updateDoc,
+  serverTimestamp,
+  collection,
+  query,
+  where,
+} from "firebase/firestore";
+import {
+  ChevronLeft,
+  ChevronDown,
+  ChevronUp,
+  Cloud,
+  Loader2,
+  Check,
+  ArrowRight,
+  UserPlus,
+} from "lucide-react";
 import { db } from "../../lib/firebase";
 import { useAuthContext } from "../../app/AuthProvider";
 import { useInventory } from "../../hooks/useInventory";
 import { commitIssue } from "../../lib/issueCommit";
 import { IssueCartProvider, useIssueCart } from "./IssueCartContext";
-import Button from "../../components/ui/Button";
-import Spinner from "../../components/ui/Spinner";
+import OnboardingItemCard from "./OnboardingItemCard";
+import {
+  groupByCategory,
+  getRowState,
+  type CategoryFilter,
+  type RowState,
+} from "./onboardingRowState";
 import { getCategoryLabel } from "../../constants/catalogCategories";
-import type { Personnel, TeamRole, Item, CartItem } from "../../types";
-
-const ROLES: { value: TeamRole; label: string }[] = [
-  { value: "rescue_specialist", label: "Rescue Specialist" },
-  { value: "search_specialist", label: "Search Specialist" },
-  { value: "medical_specialist", label: "Medical Specialist" },
-  { value: "logistics_specialist", label: "Logistics Specialist" },
-  { value: "task_force_leader", label: "Task Force Leader" },
-  { value: "k9_specialist", label: "K9 Specialist" },
-];
+import Spinner from "../../components/ui/Spinner";
+import Button from "../../components/ui/Button";
+import { useToast } from "../../components/ui/Toast";
+import type { Personnel, Item, CartItem } from "../../types";
 
 export default function OnboardingPage() {
   return (
@@ -31,92 +56,150 @@ export default function OnboardingPage() {
 
 function OnboardingFlow() {
   const { logisticsUser } = useAuthContext();
+  const toast = useToast();
   const { items: firestoreItems, loading: itemsLoading } = useInventory();
-  const { cartItems, member, setMember, loadTemplate, clearCart, addItem, removeItem, updateItemQty, toggleBackorder } = useIssueCart();
+  const {
+    cartItems,
+    member,
+    setMember,
+    loadTemplate,
+    clearCart,
+    addItem,
+    removeItem,
+    updateItemQty,
+    toggleBackorder,
+  } = useIssueCart();
+
   const navigate = useNavigate();
   const { draftId } = useParams<{ draftId?: string }>();
   const [searchParams] = useSearchParams();
   const memberParam = searchParams.get("member");
-  const [step, setStep] = useState(0); // 0=member, 1=review cart, 2=done
+
+  const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
   const [draftDocId, setDraftDocId] = useState<string | null>(draftId ?? null);
-  const [draftLoaded, setDraftLoaded] = useState(!draftId); // true if no draft to load
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
-  const [alreadyIssued, setAlreadyIssued] = useState<Map<string, number>>(new Map());
+  const [draftLoaded, setDraftLoaded] = useState(!draftId);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">(
+    "idle",
+  );
+  const [alreadyIssued, setAlreadyIssued] = useState<Map<string, number>>(
+    new Map(),
+  );
+  const [alreadyIssuedDates, setAlreadyIssuedDates] = useState<
+    Map<string, Date>
+  >(new Map());
 
-  // New member form state
-  const [form, setForm] = useState({
-    firstName: "", lastName: "", rank: "",
-    role: "rescue_specialist" as TeamRole, email: "", phone: "",
-    shirt: "", pants: "", boots: "", helmet: "", gloves: "",
-  });
+  // Step 0 narrowed from 11 fields (First/Last/Email/Phone/Rank/Role + 5 sizes)
+  // down to 3. The dropped 8 fields are stubbed with empty strings when writing
+  // drafts so the OnboardingDraft.form type stays valid and legacy drafts still
+  // load without a migration.
+  const [form, setForm] = useState({ firstName: "", lastName: "", email: "" });
 
-  // Load existing member from ?member= param — skip step 1, go straight to gear
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
+  // Tracks which cards the user has EXPLICITLY collapsed via the Done
+  // button (or the ChevronUp affordance). Default behavior: cards render
+  // expanded. A card collapses only when the user opts in, and re-expands
+  // when the user taps the collapsed card or otherwise toggles. Inverted
+  // from the previous `expandedIds` design, which required every code
+  // path that surfaces a ready row to remember to add the id — easy to
+  // miss (e.g., cart loaded from a prior session, one-size add via qty
+  // stepper). By tracking only explicit user collapses, nothing auto-
+  // collapses and there's nothing to forget.
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [prevIssuedOpen, setPrevIssuedOpen] = useState(false);
+
+  const fsItemsById = useMemo(() => {
+    const m = new Map<string, Item>();
+    for (const it of firestoreItems) m.set(it.id, it);
+    return m;
+  }, [firestoreItems]);
+
+  // ── Deep link: `?member=<id>` pre-fills + jumps to step 1 ───────────────
   useEffect(() => {
-    if (!memberParam || draftId) return; // draftId takes priority
+    if (!memberParam || draftId) return;
     (async () => {
       const memberSnap = await getDoc(doc(db, "personnel", memberParam));
-      if (memberSnap.exists()) {
-        const memberData = { id: memberSnap.id, ...memberSnap.data() } as Personnel;
-        setMember(memberData);
-        // Pre-fill form from member data
-        setForm({
-          firstName: memberData.firstName,
-          lastName: memberData.lastName,
-          rank: memberData.rank ?? "",
-          role: (memberData.role ?? "rescue_specialist") as TeamRole,
-          email: memberData.email,
-          phone: memberData.phone ?? "",
-          shirt: memberData.sizes?.shirt ?? "",
-          pants: memberData.sizes?.pants ?? "",
-          boots: memberData.sizes?.boots ?? "",
-          helmet: memberData.sizes?.helmet ?? "",
-          gloves: memberData.sizes?.gloves ?? "",
-        });
-        // Load gear template
-        loadTemplate(firestoreItems, memberData);
+      if (!memberSnap.exists()) return;
+      const memberData = {
+        id: memberSnap.id,
+        ...memberSnap.data(),
+      } as Personnel;
+      setMember(memberData);
+      setForm({
+        firstName: memberData.firstName,
+        lastName: memberData.lastName,
+        email: memberData.email,
+      });
+      loadTemplate(firestoreItems, memberData);
 
-        // Check what's already been issued to this member
-        const txSnap = await getDocs(
-          query(collection(db, "transactions"), where("personnelId", "==", memberParam))
-        );
-        const issued = new Map<string, number>();
-        txSnap.docs.forEach((d) => {
-          const tx = d.data();
-          (tx.items || []).forEach((ti: { itemId: string; qtyIssued: number; isBackorder?: boolean }) => {
-            if (!ti.isBackorder) {
-              issued.set(ti.itemId, (issued.get(ti.itemId) || 0) + ti.qtyIssued);
+      // Pull every prior transaction for this member to build the
+      // "previouslyIssued" counts + latest-issued-date map the cards consume.
+      const txSnap = await getDocs(
+        query(
+          collection(db, "transactions"),
+          where("personnelId", "==", memberParam),
+        ),
+      );
+      const issued = new Map<string, number>();
+      const dates = new Map<string, Date>();
+      txSnap.docs.forEach((d) => {
+        const tx = d.data();
+        const ts: Date | null = tx.timestamp?.toDate?.() ?? null;
+        (tx.items || []).forEach(
+          (ti: {
+            itemId: string;
+            qtyIssued: number;
+            isBackorder?: boolean;
+          }) => {
+            if (ti.isBackorder) return;
+            issued.set(
+              ti.itemId,
+              (issued.get(ti.itemId) || 0) + ti.qtyIssued,
+            );
+            if (ts) {
+              const existing = dates.get(ti.itemId);
+              if (!existing || ts > existing) dates.set(ti.itemId, ts);
             }
-          });
-        });
-        setAlreadyIssued(issued);
-
-        setStep(1);
-      }
+          },
+        );
+      });
+      setAlreadyIssued(issued);
+      setAlreadyIssuedDates(dates);
+      setStep(1);
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [memberParam, firestoreItems.length]);
 
-  // Load draft from Firestore if draftId is in URL
+  // ── Draft resume: `/onboarding/<draftId>` ──────────────────────────────
   useEffect(() => {
     if (!draftId) return;
     (async () => {
       const snap = await getDoc(doc(db, "onboarding_drafts", draftId));
       if (snap.exists()) {
         const data = snap.data();
-        setForm(data.form as typeof form);
+        // Only the 3 active fields are pulled into form state. Legacy fields
+        // (phone/rank/role/shirt/pants/boots/helmet/gloves) are ignored even
+        // if they exist on the stored doc.
+        setForm({
+          firstName: data.form?.firstName ?? "",
+          lastName: data.form?.lastName ?? "",
+          email: data.form?.email ?? "",
+        });
         setStep(data.step ?? 0);
         setNotes(data.notes ?? "");
         setDraftDocId(draftId);
-        // Restore member
         if (data.memberId) {
           const memberSnap = await getDoc(doc(db, "personnel", data.memberId));
           if (memberSnap.exists()) {
-            setMember({ id: memberSnap.id, ...memberSnap.data() } as Personnel);
+            setMember({
+              id: memberSnap.id,
+              ...memberSnap.data(),
+            } as Personnel);
           }
         }
-        // Restore cart
         clearCart();
         if (data.cartItems) {
           for (const ci of data.cartItems) addItem(ci);
@@ -124,9 +207,10 @@ function OnboardingFlow() {
       }
       setDraftLoaded(true);
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftId]);
 
-  // Auto-save draft to Firestore (debounced)
+  // ── Debounced draft autosave ───────────────────────────────────────────
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveDraftToFirestore = useCallback(() => {
     if (!logisticsUser || step >= 2) return;
@@ -134,9 +218,27 @@ function OnboardingFlow() {
     setSaveStatus("saving");
     saveTimer.current = setTimeout(async () => {
       const draftData = {
-        memberName: form.firstName && form.lastName ? `${form.lastName}, ${form.firstName}` : "",
+        memberName:
+          form.firstName && form.lastName
+            ? `${form.lastName}, ${form.firstName}`
+            : "",
         memberId: member?.id ?? null,
-        form,
+        // Write the legacy 11-field shape for backward compat — stub the
+        // removed fields with empty strings so OnboardingDraft.form stays
+        // type-valid without needing a schema migration.
+        form: {
+          firstName: form.firstName,
+          lastName: form.lastName,
+          email: form.email,
+          rank: "",
+          role: "",
+          phone: "",
+          shirt: "",
+          pants: "",
+          boots: "",
+          helmet: "",
+          gloves: "",
+        },
         step,
         notes,
         cartItems,
@@ -146,7 +248,10 @@ function OnboardingFlow() {
       };
       try {
         if (draftDocId) {
-          await updateDoc(doc(db, "onboarding_drafts", draftDocId), draftData);
+          await updateDoc(
+            doc(db, "onboarding_drafts", draftDocId),
+            draftData,
+          );
         } else if (form.firstName || form.lastName) {
           const ref = doc(collection(db, "onboarding_drafts"));
           await setDoc(ref, { ...draftData, createdAt: serverTimestamp() });
@@ -162,75 +267,63 @@ function OnboardingFlow() {
 
   useEffect(() => {
     saveDraftToFirestore();
-    return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form, step, notes, member?.id, cartItems]);
 
-  function update(f: string, v: string) {
-    setForm((p) => ({ ...p, [f]: v }));
+  // ── Form update helper ────────────────────────────────────────────────
+  function update<K extends "firstName" | "lastName" | "email">(
+    field: K,
+    value: string,
+  ) {
+    setForm((p) => ({ ...p, [field]: value }));
   }
 
+  // ── Create member + load template (step 0 submit) ─────────────────────
   async function handleCreateMember(e: FormEvent) {
     e.preventDefault();
     if (!logisticsUser) return;
 
     const ref = doc(collection(db, "personnel"));
-    const newMember: Personnel = {
-      id: ref.id,
-      firstName: form.firstName,
-      lastName: form.lastName,
-      rank: form.rank || undefined,
-      role: form.role || undefined,
-      email: form.email,
-      phone: form.phone || undefined,
-      isActive: true,
-      joinDate: serverTimestamp() as any,
-      sizes: {
-        shirt: form.shirt || undefined,
-        pants: form.pants || undefined,
-        boots: form.boots || undefined,
-        helmet: form.helmet || undefined,
-        gloves: form.gloves || undefined,
-      },
-      createdAt: serverTimestamp() as any,
-      createdBy: logisticsUser.id,
-    };
-
     await setDoc(ref, {
       firstName: form.firstName,
       lastName: form.lastName,
-      rank: form.rank || null,
-      role: form.role || null,
       email: form.email,
-      phone: form.phone || null,
       isActive: true,
       joinDate: serverTimestamp(),
-      sizes: {
-        shirt: form.shirt || null,
-        pants: form.pants || null,
-        boots: form.boots || null,
-        helmet: form.helmet || null,
-        gloves: form.gloves || null,
-      },
+      sizes: {},
       createdAt: serverTimestamp(),
       createdBy: logisticsUser.id,
     });
 
-    // Load onboarding template into cart
+    const newMember: Personnel = {
+      id: ref.id,
+      firstName: form.firstName,
+      lastName: form.lastName,
+      email: form.email,
+      isActive: true,
+      joinDate: serverTimestamp() as unknown as Personnel["joinDate"],
+      sizes: {},
+      createdAt: serverTimestamp() as unknown as Personnel["createdAt"],
+      createdBy: logisticsUser.id,
+    };
+
     loadTemplate(firestoreItems, newMember);
     setStep(1);
   }
 
-  // Only items with qty > 0 will be issued
+  // ── Commit handler (unchanged signature to commitIssue) ───────────────
   const issuableItems = useMemo(
     () => cartItems.filter((i) => i.qty > 0 && (i.size || !i.needsSize)),
-    [cartItems]
+    [cartItems],
   );
 
   async function handleCommit() {
     if (!logisticsUser || !member || issuableItems.length === 0) return;
     setSubmitting(true);
     try {
-      // Recalculate stock before for each item
       const itemsWithStock = issuableItems.map((ci) => {
         const fsItem = firestoreItems.find((i) => i.id === ci.itemId);
         const stock = fsItem?.sizeMap?.[ci.size ?? ""]?.qty ?? 0;
@@ -249,26 +342,162 @@ function OnboardingFlow() {
         notes: notes || undefined,
         sourceForm: "ipad_onboarding",
       });
-      // Mark draft as completed
+
       if (draftDocId) {
-        await updateDoc(doc(db, "onboarding_drafts", draftDocId), { completedAt: serverTimestamp() }).catch(() => {});
+        await updateDoc(doc(db, "onboarding_drafts", draftDocId), {
+          completedAt: serverTimestamp(),
+        }).catch(() => {});
       }
       setSuccess(txId);
       setStep(2);
     } catch (err) {
       console.error("Onboarding issue failed:", err);
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "Failed to complete onboarding issue.",
+      );
     } finally {
       setSubmitting(false);
     }
   }
 
+  // ── Per-row handlers for OnboardingItemCard ───────────────────────────
+  //
+  // Card's onSizeChange needs a remove+add because IssueCartContext keys
+  // rows by (itemId, size). We preserve qty (or bump from 0 → suggestedQty)
+  // and recompute qtyBefore from the new size's stock. Mirrors the legacy
+  // OnboardingPage:697-708 size-change logic.
+  function handleSizeChange(
+    row: CartItem,
+    fsItem: Item | undefined,
+    newSize: string | null,
+  ) {
+    if (newSize === row.size) return;
+    removeItem(row.itemId, row.size);
+    const stock =
+      newSize && fsItem?.sizeMap?.[newSize]?.qty != null
+        ? fsItem.sizeMap[newSize].qty
+        : 0;
+    const nextQty = row.qty > 0 ? row.qty : (row.suggestedQty ?? 1);
+    addItem({
+      ...row,
+      size: newSize,
+      qty: nextQty,
+      qtyBefore: stock,
+      isBackorder: row.isBackorder,
+    });
+    // No expand-set needed here: cards default to expanded under the
+    // inverted `collapsedIds` model. Size-select never collapses.
+  }
+
+  // Toggles whether a given card is user-collapsed. Wired to the card's
+  // `onExpand` prop (which is also its onCollapse — the card treats the
+  // single callback as a flip-between-states signal). The card doesn't
+  // know or care that the parent now tracks collapsed-ness instead of
+  // expanded-ness; it just calls the toggle on user interaction.
+  function toggleRowCollapsed(itemId: string) {
+    setCollapsedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(itemId)) next.delete(itemId);
+      else next.add(itemId);
+      return next;
+    });
+  }
+
+  // ── Derived state for step 1 rendering ────────────────────────────────
+
+  const groups = useMemo(
+    () => groupByCategory(cartItems, firestoreItems, alreadyIssued),
+    [cartItems, firestoreItems, alreadyIssued],
+  );
+
+  // Separate previously-issued rows into their own bottom section. Each
+  // activeGroup carries only its "current session" rows so the progress
+  // count only tracks new work, not legacy.
+  const activeGroups = useMemo(
+    () =>
+      groups
+        .filter((g) => !g.allPreviouslyIssued)
+        .map((g) => {
+          const rows = g.rows.filter((row) => {
+            const fs = fsItemsById.get(row.itemId);
+            if (!fs) return true;
+            return getRowState(row, fs, alreadyIssued) !== "previouslyIssued";
+          });
+          const remaining = rows.filter((row) => {
+            const fs = fsItemsById.get(row.itemId);
+            if (!fs) return true;
+            return getRowState(row, fs, alreadyIssued) !== "ready";
+          }).length;
+          const readyInGroup = rows.length - remaining;
+          return {
+            category: g.category,
+            rows,
+            readyCount: readyInGroup,
+            totalCount: rows.length,
+            remaining,
+          };
+        })
+        .filter((g) => g.rows.length > 0),
+    [groups, fsItemsById, alreadyIssued],
+  );
+
+  const previouslyIssuedRows = useMemo(() => {
+    const list: CartItem[] = [];
+    for (const row of cartItems) {
+      const fs = fsItemsById.get(row.itemId);
+      if (!fs) continue;
+      if (getRowState(row, fs, alreadyIssued) === "previouslyIssued") {
+        list.push(row);
+      }
+    }
+    return list;
+  }, [cartItems, fsItemsById, alreadyIssued]);
+
+  // Per-row state lookup used for the progress bar + footer counts.
+  const rowStatesArr = useMemo(() => {
+    return cartItems.map((row): { row: CartItem; state: RowState } => {
+      const fs = fsItemsById.get(row.itemId);
+      return {
+        row,
+        state: fs ? getRowState(row, fs, alreadyIssued) : "pending",
+      };
+    });
+  }, [cartItems, fsItemsById, alreadyIssued]);
+
+  const readyCount = rowStatesArr.filter((s) => s.state === "ready").length;
+  const backorderCount = rowStatesArr.filter(
+    (s) => s.state === "ready" && s.row.isBackorder,
+  ).length;
+  const pendingCount = rowStatesArr.filter(
+    (s) => s.state === "pending" || s.state === "outOfStock",
+  ).length;
+  const sessionTotal = rowStatesArr.filter(
+    (s) => s.state !== "previouslyIssued",
+  ).length;
+
+  const progressPct =
+    sessionTotal > 0 ? Math.round((readyCount / sessionTotal) * 100) : 0;
+
+  const hasUnsizedReady = cartItems.some(
+    (r) => r.qty > 0 && r.needsSize && !r.size,
+  );
+  const canCommit = readyCount > 0 && !hasUnsizedReady && !submitting;
+
+  // ── Early returns: loading / success ──────────────────────────────────
+
   if (itemsLoading) {
-    return <div className="flex justify-center py-16"><Spinner /></div>;
+    return (
+      <div className="flex justify-center py-16">
+        <Spinner />
+      </div>
+    );
   }
 
   if (success) {
     return (
-      <div className="p-6 flex flex-col items-center justify-center h-96 text-center">
+      <div className="p-6 flex flex-col items-center justify-center min-h-[60vh] text-center">
         <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-4">
           <Check size={32} className="text-emerald-600" />
         </div>
@@ -277,523 +506,371 @@ function OnboardingFlow() {
           {member?.firstName} {member?.lastName} has been onboarded.
         </p>
         <p className="text-xs text-slate-400 mt-1">Transaction: {success}</p>
-        <div className="flex gap-3 mt-6">
-          <Button variant="secondary" onClick={() => { clearCart(); setSuccess(null); setStep(0); setNotes(""); setDraftDocId(null); setForm({ firstName: "", lastName: "", rank: "", role: "rescue_specialist", email: "", phone: "", shirt: "", pants: "", boots: "", helmet: "", gloves: "" }); navigate("/logistics/onboarding"); }}>
+        <div className="flex flex-wrap gap-3 mt-6 justify-center">
+          <Button
+            variant="secondary"
+            onClick={() => {
+              clearCart();
+              setSuccess(null);
+              setStep(0);
+              setNotes("");
+              setDraftDocId(null);
+              setForm({ firstName: "", lastName: "", email: "" });
+              navigate("/logistics/onboarding");
+            }}
+            className="min-h-[48px]"
+          >
             Onboard Another
           </Button>
-          <Button onClick={() => navigate("/logistics")}>Dashboard</Button>
+          <Button onClick={() => navigate("/logistics")} className="min-h-[48px]">
+            Dashboard
+          </Button>
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="p-3 md:p-6 space-y-4">
-      {!draftLoaded && (
-        <div className="flex justify-center py-16"><Spinner /></div>
-      )}
-
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
-        <div className="flex items-center gap-3 min-w-0">
-          <h1 className="text-xl md:text-2xl font-bold text-navy-900 truncate">New Member Onboarding</h1>
-          {saveStatus === "saving" && (
-            <span className="flex items-center gap-1.5 text-xs text-slate-400">
-              <Loader2 size={12} className="animate-spin" />
-              Saving...
-            </span>
-          )}
-          {saveStatus === "saved" && (
-            <span className="flex items-center gap-1.5 text-xs text-emerald-600">
-              <Cloud size={12} />
-              Saved
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-1.5 md:gap-2 shrink-0">
-          <div className={`w-6 h-6 md:w-7 md:h-7 rounded-full flex items-center justify-center text-xs font-medium ${step === 0 ? "bg-navy-700 text-white" : "bg-emerald-100 text-emerald-700"}`}>
-            {step > 0 ? <Check size={14} /> : "1"}
-          </div>
-          <span className="text-xs md:text-sm text-slate-400">Member Info</span>
-          <div className="w-4 md:w-8 h-px bg-slate-200" />
-          <div className={`w-6 h-6 md:w-7 md:h-7 rounded-full flex items-center justify-center text-xs font-medium ${step === 1 ? "bg-navy-700 text-white" : step > 1 ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-400"}`}>
-            {step > 1 ? <Check size={14} /> : "2"}
-          </div>
-          <span className="text-xs md:text-sm text-slate-400">Review Gear</span>
-        </div>
+  if (!draftLoaded) {
+    return (
+      <div className="flex justify-center py-16">
+        <Spinner />
       </div>
-
-      {step === 0 && (
-        <form onSubmit={handleCreateMember} className="bg-white rounded-xl border border-slate-200 p-4 md:p-6 space-y-4">
-          <h2 className="text-lg font-semibold text-slate-800">
-            <UserPlus size={18} className="inline mr-2" />
-            New Member Information
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">First Name *</label>
-              <input type="text" required value={form.firstName} onChange={(e) => update("firstName", e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy-500" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Last Name *</label>
-              <input type="text" required value={form.lastName} onChange={(e) => update("lastName", e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy-500" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Email *</label>
-              <input type="email" required value={form.email} onChange={(e) => update("email", e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy-500" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
-              <input type="tel" value={form.phone} onChange={(e) => update("phone", e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy-500" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Rank</label>
-              <input type="text" value={form.rank} onChange={(e) => update("rank", e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy-500" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Role</label>
-              <select value={form.role} onChange={(e) => update("role", e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy-500">
-                {ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
-              </select>
-            </div>
-          </div>
-
-          <div className="border-t border-slate-200 pt-4">
-            <h3 className="text-sm font-semibold text-slate-700 mb-3">Sizes (pre-fills gear template)</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 md:gap-4">
-              <div>
-                <label className="block text-xs text-slate-600 mb-1">Shirt</label>
-                <input type="text" value={form.shirt} onChange={(e) => update("shirt", e.target.value)} placeholder="L" className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy-500" />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-600 mb-1">Pants</label>
-                <input type="text" value={form.pants} onChange={(e) => update("pants", e.target.value)} placeholder="34x32" className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy-500" />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-600 mb-1">Boots</label>
-                <input type="text" value={form.boots} onChange={(e) => update("boots", e.target.value)} placeholder="10.5 M" className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy-500" />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-600 mb-1">Helmet</label>
-                <input type="text" value={form.helmet} onChange={(e) => update("helmet", e.target.value)} placeholder="M/L" className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy-500" />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-600 mb-1">Gloves</label>
-                <input type="text" value={form.gloves} onChange={(e) => update("gloves", e.target.value)} placeholder="L" className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy-500" />
-              </div>
-            </div>
-          </div>
-
-          <div className="flex justify-end">
-            <Button type="submit">
-              Create Member & Load Gear Template <ArrowRight size={14} />
-            </Button>
-          </div>
-        </form>
-      )}
-
-      {step === 1 && (
-        <div className="space-y-4">
-          {member && (() => {
-            const filledCount = cartItems.filter((i) => i.qty > 0).length;
-            const total = cartItems.length;
-            const pct = total > 0 ? Math.round((filledCount / total) * 100) : 0;
-            return (
-              <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-slate-700">
-                    Onboarding <strong>{member.firstName} {member.lastName}</strong>
-                  </p>
-                  <span className={`text-sm font-semibold ${pct === 100 ? "text-emerald-600" : "text-slate-700"}`}>
-                    {filledCount} / {total} items ({pct}%)
-                  </span>
-                </div>
-                <div className="w-full bg-slate-100 rounded-full h-2.5">
-                  <div
-                    className={`h-2.5 rounded-full transition-all duration-300 ${
-                      pct === 100 ? "bg-emerald-500" : pct > 50 ? "bg-blue-500" : "bg-amber-500"
-                    }`}
-                    style={{ width: `${pct}%` }}
-                  />
-                </div>
-                <p className="text-xs text-slate-400">
-                  Enter qty and size for each item to issue. Items left at 0 will be skipped.
-                </p>
-              </div>
-            );
-          })()}
-
-          <GearTable
-            cartItems={cartItems}
-            firestoreItems={firestoreItems}
-            addItem={addItem}
-            removeItem={removeItem}
-            updateItemQty={updateItemQty}
-            toggleBackorder={toggleBackorder}
-            alreadyIssued={alreadyIssued}
-          />
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Notes</label>
-            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy-500" />
-          </div>
-
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <p className="text-xs md:text-sm text-slate-500">
-              {issuableItems.length} item{issuableItems.length !== 1 ? "s" : ""} will be issued
-              {cartItems.some((i) => i.qty > 0 && i.needsSize && !i.size) && (
-                <span className="text-amber-600 ml-2">-- some items need a size</span>
-              )}
-            </p>
-            <Button onClick={handleCommit} disabled={submitting || issuableItems.length === 0} size="lg" className="w-full sm:w-auto">
-              {submitting ? "Processing..." : `Confirm Onboarding (${issuableItems.length} items)`}
-            </Button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Category-grouped gear table ──
-
-const CATEGORY_ORDER = [
-  "packs-bags",
-  "patches",
-  "footwear",
-  "clothing-bdus",
-  "clothing-shirts",
-  "clothing-outerwear",
-  "clothing-headwear",
-  "clothing-personal",
-  "ppe-equipment",
-  "head-protection",
-  "sleep-system",
-  "personal-items",
-  // Fallbacks for items using old category IDs
-  "bags", "boots", "bdus", "clothing", "ppe", "helmet", "sleeping", "personal",
-];
-
-function GearTable({
-  cartItems,
-  firestoreItems,
-  addItem,
-  removeItem,
-  updateItemQty,
-  toggleBackorder,
-  alreadyIssued,
-}: {
-  cartItems: CartItem[];
-  firestoreItems: Item[];
-  addItem: (item: CartItem) => void;
-  removeItem: (itemId: string, size: string | null) => void;
-  updateItemQty: (itemId: string, size: string | null, qty: number) => void;
-  toggleBackorder: (itemId: string, size: string | null) => void;
-  alreadyIssued: Map<string, number>;
-}) {
-  // Group items by category
-  const grouped = useMemo(() => {
-    const map = new Map<string, CartItem[]>();
-    for (const ci of cartItems) {
-      const fsItem = firestoreItems.find((i) => i.id === ci.itemId);
-      const cat = fsItem?.catalogCategory ?? fsItem?.category ?? "other";
-      if (!map.has(cat)) map.set(cat, []);
-      map.get(cat)!.push(ci);
-    }
-    // Sort groups by CATEGORY_ORDER
-    const sorted: [string, CartItem[]][] = [];
-    for (const cat of CATEGORY_ORDER) {
-      if (map.has(cat)) {
-        sorted.push([cat, map.get(cat)!]);
-        map.delete(cat);
-      }
-    }
-    // Any remaining categories not in the order
-    for (const [cat, items] of map) {
-      sorted.push([cat, items]);
-    }
-    return sorted;
-  }, [cartItems, firestoreItems]);
-
-  // Start all sections collapsed
-  const allCats = useMemo(() => grouped.map(([cat]) => cat), [grouped]);
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set(allCats));
-
-  function toggleSection(cat: string) {
-    setCollapsed((prev) => {
-      const next = new Set(prev);
-      if (next.has(cat)) next.delete(cat);
-      else next.add(cat);
-      return next;
-    });
+    );
   }
 
-  return (
-    <div className="space-y-2">
-      {grouped.map(([cat, items]) => {
-        const isOpen = !collapsed.has(cat);
-        const filledCount = items.filter((i) => i.qty > 0).length;
-
-        return (
-          <div key={cat} className="bg-white rounded-xl border border-slate-200">
-            {/* Category header — clickable */}
+  // ── Step 0 — compact 3-field member form ───────────────────────────────
+  if (step === 0) {
+    const canSubmit = !!(form.firstName && form.lastName && form.email);
+    return (
+      <div className="max-w-xl mx-auto min-h-screen flex flex-col bg-slate-50">
+        <TopHeader saveStatus={saveStatus} onBack={() => navigate(-1)} />
+        <main className="flex-1 p-4">
+          <form
+            onSubmit={handleCreateMember}
+            className="bg-white rounded-2xl border border-slate-200 p-4 space-y-4"
+          >
+            <div className="flex items-center gap-2">
+              <UserPlus size={18} className="text-navy-600" />
+              <h2 className="text-lg font-semibold text-slate-900">
+                New Member Information
+              </h2>
+            </div>
+            <div className="space-y-3">
+              <Field
+                label="First Name *"
+                value={form.firstName}
+                type="text"
+                onChange={(v) => update("firstName", v)}
+              />
+              <Field
+                label="Last Name *"
+                value={form.lastName}
+                type="text"
+                onChange={(v) => update("lastName", v)}
+              />
+              <Field
+                label="Email *"
+                value={form.email}
+                type="email"
+                onChange={(v) => update("email", v)}
+              />
+            </div>
             <button
-              onClick={() => toggleSection(cat)}
-              className="w-full flex items-center justify-between px-4 py-2.5 bg-slate-50 hover:bg-slate-100 transition-colors rounded-t-xl"
+              type="submit"
+              disabled={!canSubmit}
+              className="w-full min-h-[48px] inline-flex items-center justify-center gap-2 rounded-lg bg-slate-900 text-white font-medium text-base disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors"
             >
-              <div className="flex items-center gap-2">
-                {isOpen ? <ChevronDown size={14} className="text-slate-400" /> : <ChevronRight size={14} className="text-slate-400" />}
-                <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                  {getCategoryLabel(cat)}
-                </h3>
-                <span className="text-xs text-slate-400">({items.length})</span>
-              </div>
-              {filledCount > 0 && (
-                <span className="text-xs font-medium text-emerald-600">{filledCount} filled</span>
+              Create Member &amp; Load Gear Template
+              <ArrowRight size={16} />
+            </button>
+          </form>
+        </main>
+      </div>
+    );
+  }
+
+  // ── Step 1 — gear issuance (card list) ─────────────────────────────────
+
+  const filterPills: Array<{ id: CategoryFilter; label: string; count: number }> =
+    [
+      { id: "all", label: "All", count: pendingCount },
+      ...activeGroups.map((g) => ({
+        id: g.category,
+        label: getCategoryLabel(g.category),
+        count: g.remaining,
+      })),
+    ];
+
+  const visibleGroups =
+    categoryFilter === "all"
+      ? activeGroups
+      : activeGroups.filter((g) => g.category === categoryFilter);
+
+  const notesLabel = notes.trim() ? "Notes (1 line)" : "Notes";
+
+  return (
+    <div className="max-w-xl mx-auto min-h-screen flex flex-col bg-slate-50">
+      <TopHeader saveStatus={saveStatus} onBack={() => navigate(-1)} />
+
+      {/* Person summary */}
+      {member && (
+        <section className="bg-white border-b border-slate-200 px-4 py-4">
+          <p className="text-[15px] font-semibold text-slate-900 truncate">
+            {member.lastName}, {member.firstName}
+          </p>
+          <p className="text-xs text-slate-500 truncate">{member.email}</p>
+          <div className="mt-3 flex items-center gap-3">
+            <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+              <div
+                className={`h-full transition-all ${
+                  progressPct === 100 ? "bg-amber-500" : "bg-blue-800"
+                }`}
+                style={{ width: `${progressPct}%` }}
+              />
+            </div>
+            <span className="text-xs text-slate-500 tabular-nums shrink-0">
+              {readyCount} / {sessionTotal}
+            </span>
+          </div>
+        </section>
+      )}
+
+      {/* Category filter pills — sticky */}
+      <nav
+        aria-label="Category filter"
+        className="sticky top-0 z-10 bg-white border-b border-slate-200 px-4 py-2.5 flex gap-1.5 overflow-x-auto"
+      >
+        {filterPills.map((p) => {
+          const isActive = categoryFilter === p.id;
+          return (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => setCategoryFilter(p.id)}
+              aria-pressed={isActive}
+              className={`rounded-full px-3 py-1.5 text-xs font-medium whitespace-nowrap min-h-[32px] transition-colors ${
+                isActive
+                  ? "bg-slate-900 text-white"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              {p.label} · {p.count}
+            </button>
+          );
+        })}
+      </nav>
+
+      {/* Main scrollable content */}
+      <main className="flex-1 px-4 py-3 space-y-4">
+        {visibleGroups.map((group) => (
+          <section key={group.category}>
+            {categoryFilter === "all" && (
+              <p className="text-xs text-slate-500 uppercase tracking-wider font-medium px-1 mt-1 mb-2">
+                {getCategoryLabel(group.category)} · {group.readyCount}/
+                {group.totalCount} ready
+              </p>
+            )}
+            <div className="space-y-2">
+              {group.rows.map((row) => {
+                const fs = fsItemsById.get(row.itemId);
+                if (!fs) return null;
+                return (
+                  <OnboardingItemCard
+                    key={`${row.itemId}::${row.size ?? "null"}`}
+                    row={row}
+                    fsItem={fs}
+                    alreadyIssuedQty={alreadyIssued.get(row.itemId) ?? 0}
+                    alreadyIssuedLastDate={alreadyIssuedDates.get(row.itemId)}
+                    expanded={!collapsedIds.has(row.itemId)}
+                    onExpand={() => toggleRowCollapsed(row.itemId)}
+                    onSizeChange={(size) => handleSizeChange(row, fs, size)}
+                    onQtyChange={(qty) =>
+                      updateItemQty(row.itemId, row.size, qty)
+                    }
+                    onToggleBackorder={() =>
+                      toggleBackorder(row.itemId, row.size)
+                    }
+                  />
+                );
+              })}
+            </div>
+          </section>
+        ))}
+
+        {visibleGroups.length === 0 && (
+          <div className="text-center py-8 text-sm text-slate-400">
+            No items match this filter.
+          </div>
+        )}
+
+        {/* Previously-issued section — only under "All" filter */}
+        {categoryFilter === "all" && previouslyIssuedRows.length > 0 && (
+          <section className="mt-6">
+            <button
+              type="button"
+              onClick={() => setPrevIssuedOpen((v) => !v)}
+              aria-expanded={prevIssuedOpen}
+              className="w-full flex items-center justify-between px-1 py-2 text-xs font-medium text-slate-500 uppercase tracking-wider hover:text-slate-700"
+            >
+              <span>
+                Previously issued · {previouslyIssuedRows.length} items
+              </span>
+              {prevIssuedOpen ? (
+                <ChevronUp size={14} />
+              ) : (
+                <ChevronDown size={14} />
               )}
             </button>
-            {isOpen && (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm min-w-[520px]">
-                  <thead>
-                    <tr className="border-b border-slate-100 border-t border-slate-200">
-                      <th className="text-left px-3 md:px-4 py-2 text-xs font-medium text-slate-400">Item</th>
-                      <th className="text-center px-2 py-2 text-xs font-medium text-slate-400 w-16 md:w-20">Req</th>
-                      <th className="text-left px-2 py-2 text-xs font-medium text-slate-400 w-28 md:w-32">Size</th>
-                      <th className="text-center px-2 py-2 text-xs font-medium text-slate-400 w-16 md:w-20">Qty</th>
-                      <th className="text-center px-2 py-2 text-xs font-medium text-slate-400 w-12 md:w-14">BO</th>
-                      <th className="w-8 md:w-10 px-2" />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {(() => {
-                      // Group items by itemId so multi-size entries render together
-                      const groups: CartItem[][] = [];
-                      const groupMap = new Map<string, CartItem[]>();
-                      for (const ci of items) {
-                        if (!groupMap.has(ci.itemId)) {
-                          const arr: CartItem[] = [];
-                          groupMap.set(ci.itemId, arr);
-                          groups.push(arr);
-                        }
-                        groupMap.get(ci.itemId)!.push(ci);
+            {prevIssuedOpen && (
+              <div className="space-y-2 mt-2">
+                {previouslyIssuedRows.map((row) => {
+                  const fs = fsItemsById.get(row.itemId);
+                  if (!fs) return null;
+                  return (
+                    <OnboardingItemCard
+                      key={`${row.itemId}::${row.size ?? "null"}`}
+                      row={row}
+                      fsItem={fs}
+                      alreadyIssuedQty={alreadyIssued.get(row.itemId) ?? 0}
+                      alreadyIssuedLastDate={alreadyIssuedDates.get(row.itemId)}
+                      expanded={!collapsedIds.has(row.itemId)}
+                      onExpand={() => toggleRowCollapsed(row.itemId)}
+                      onSizeChange={(size) => handleSizeChange(row, fs, size)}
+                      onQtyChange={(qty) =>
+                        updateItemQty(row.itemId, row.size, qty)
                       }
-                      return groups.map((entries) => (
-                        <GearItemGroup
-                          key={entries[0].itemId}
-                          entries={entries}
-                          fsItem={firestoreItems.find((i) => i.id === entries[0].itemId)}
-                          addItem={addItem}
-                          removeItem={removeItem}
-                          updateItemQty={updateItemQty}
-                          toggleBackorder={toggleBackorder}
-                          issuedQty={alreadyIssued.get(entries[0].itemId) ?? 0}
-                        />
-                      ));
-                    })()}
-                  </tbody>
-                </table>
+                      onToggleBackorder={() =>
+                        toggleBackorder(row.itemId, row.size)
+                      }
+                    />
+                  );
+                })}
               </div>
             )}
+          </section>
+        )}
+      </main>
+
+      {/* Sticky footer */}
+      <footer className="sticky bottom-0 bg-white border-t border-slate-200">
+        {notesOpen && (
+          <div className="px-4 pt-3 pb-1">
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={3}
+              placeholder="Notes (optional)"
+              className="w-full text-base border border-slate-200 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-navy-500"
+            />
           </div>
-        );
-      })}
+        )}
+        <div className="px-4 py-2 flex items-center justify-between gap-2">
+          <span className="text-xs text-slate-500 truncate">
+            {readyCount} item{readyCount === 1 ? "" : "s"} · {backorderCount}{" "}
+            backorder
+          </span>
+          <button
+            type="button"
+            onClick={() => setNotesOpen((v) => !v)}
+            aria-expanded={notesOpen}
+            className="shrink-0 text-xs font-medium text-slate-700 hover:text-slate-900 underline-offset-2 hover:underline"
+          >
+            {notesLabel}
+          </button>
+        </div>
+        <div className="px-4 pb-3">
+          <button
+            type="button"
+            onClick={handleCommit}
+            disabled={!canCommit}
+            className="w-full min-h-[48px] rounded-lg bg-slate-900 text-white font-medium text-base disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors"
+          >
+            {submitting
+              ? "Processing..."
+              : `Confirm issue · ${readyCount} item${readyCount === 1 ? "" : "s"}`}
+          </button>
+        </div>
+      </footer>
     </div>
   );
 }
 
-function GearItemGroup({
-  entries,
-  fsItem,
-  addItem,
-  removeItem,
-  updateItemQty,
-  toggleBackorder,
-  issuedQty,
+// ── Top header (non-sticky) ──────────────────────────────────────────────
+
+function TopHeader({
+  saveStatus,
+  onBack,
 }: {
-  entries: CartItem[];
-  fsItem: Item | undefined;
-  addItem: (item: CartItem) => void;
-  removeItem: (itemId: string, size: string | null) => void;
-  updateItemQty: (itemId: string, size: string | null, qty: number) => void;
-  toggleBackorder: (itemId: string, size: string | null) => void;
-  issuedQty: number;
+  saveStatus: "idle" | "saving" | "saved";
+  onBack: () => void;
 }) {
-  const allSizes = Object.keys(fsItem?.sizeMap || {}).sort((a, b) =>
-    a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }),
-  );
-  const primary = entries[0];
-  const hasUnsizedEntry = entries.some((e) => e.needsSize && !e.size);
-
-  function handleAddSize() {
-    addItem({
-      itemId: primary.itemId,
-      itemName: primary.itemName,
-      size: null,
-      qty: 0,
-      isBackorder: false,
-      qtyBefore: 0,
-      needsSize: true,
-      suggestedQty: undefined,
-    });
-  }
-
   return (
-    <>
-      {entries.map((item, idx) => {
-        const isPrimary = idx === 0;
-        const hasStock = item.size ? (fsItem?.sizeMap?.[item.size]?.qty ?? 0) : 0;
-        // Filter out sizes already used by other entries in this group
-        const otherUsedSizes = new Set(
-          entries.filter((e) => e !== item).map((e) => e.size).filter(Boolean),
-        );
-        const selectableSizes = allSizes.filter((s) => !otherUsedSizes.has(s));
+    <header className="bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between">
+      <div className="flex items-center gap-2 min-w-0">
+        <button
+          type="button"
+          onClick={onBack}
+          aria-label="Back"
+          className="w-10 h-10 inline-flex items-center justify-center rounded-full text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+        >
+          <ChevronLeft size={20} />
+        </button>
+        <h1 className="text-[15px] font-semibold text-slate-900">Onboarding</h1>
+      </div>
+      <AutosaveBadge status={saveStatus} />
+    </header>
+  );
+}
 
-        return (
-          <tr
-            key={`${item.itemId}::${item.size ?? idx}`}
-            className={`transition-colors ${item.qty > 0 ? "" : "opacity-50"} ${
-              isPrimary ? "hover:bg-slate-50" : "hover:bg-slate-50 bg-slate-50/50"
-            }`}
-          >
-            {/* Item name — only on primary row */}
-            <td className="px-3 md:px-4 py-2">
-              {isPrimary ? (
-                <>
-                  <span className={`font-medium ${issuedQty > 0 ? "text-slate-500" : "text-slate-900"}`}>
-                    {item.itemName}
-                  </span>
-                  {issuedQty > 0 && (
-                    <span className="ml-2 inline-flex items-center rounded-full bg-emerald-100 text-emerald-700 px-1.5 py-0.5 text-[10px] font-medium">
-                      Issued: {issuedQty}
-                    </span>
-                  )}
-                  {item.qty > 0 && hasStock < item.qty && item.size && issuedQty === 0 && (
-                    <span className="ml-2 text-xs text-amber-600">
-                      {hasStock === 0 ? "Out of stock" : `Only ${hasStock} in stock`}
-                    </span>
-                  )}
-                </>
-              ) : (
-                <span className="pl-3 text-xs text-slate-400 border-l-2 border-slate-200">
-                  {item.size ? "" : "Select size..."}
-                  {item.qty > 0 && hasStock < item.qty && item.size && (
-                    <span className="text-amber-600">
-                      {hasStock === 0 ? "Out of stock" : `Only ${hasStock}`}
-                    </span>
-                  )}
-                </span>
-              )}
-            </td>
+function AutosaveBadge({
+  status,
+}: {
+  status: "idle" | "saving" | "saved";
+}) {
+  if (status === "saving") {
+    return (
+      <span className="flex items-center gap-1.5 text-xs text-slate-400">
+        <Loader2 size={12} className="animate-spin" />
+        Saving…
+      </span>
+    );
+  }
+  if (status === "saved") {
+    return (
+      <span className="flex items-center gap-1.5 text-xs text-emerald-600">
+        <Cloud size={12} />
+        Saved
+      </span>
+    );
+  }
+  return <span aria-hidden="true" />;
+}
 
-            {/* Suggested qty — only on primary row */}
-            <td className="px-2 py-2 text-center">
-              {isPrimary && <span className="text-xs text-slate-400">{item.suggestedQty ?? 1}</span>}
-            </td>
+// ── Small labeled field (step 0) ────────────────────────────────────────
 
-            {/* Size selector */}
-            <td className="px-2 py-2">
-              {item.needsSize ? (
-                selectableSizes.length > 0 ? (
-                  <select
-                    value={item.size ?? ""}
-                    onChange={(e) => {
-                      removeItem(item.itemId, item.size);
-                      const newSize = e.target.value;
-                      const stock = fsItem?.sizeMap?.[newSize]?.qty ?? 0;
-                      addItem({
-                        ...item,
-                        size: newSize || null,
-                        qtyBefore: stock,
-                        isBackorder: item.qty > 0 && stock < item.qty,
-                      });
-                    }}
-                    className={`w-full px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-navy-500 ${
-                      !item.size && item.qty > 0 ? "border-amber-400 bg-amber-50" : "border-slate-300"
-                    }`}
-                  >
-                    <option value="">Select size...</option>
-                    {selectableSizes.map((s) => (
-                      <option key={s} value={s}>
-                        {s} ({fsItem?.sizeMap?.[s]?.qty ?? 0} avail)
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <input
-                    type="text"
-                    value={item.size ?? ""}
-                    onChange={(e) => {
-                      removeItem(item.itemId, item.size);
-                      addItem({ ...item, size: e.target.value.toUpperCase() || null });
-                    }}
-                    placeholder="Enter size"
-                    className="w-full px-2 py-1 text-xs border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-navy-500"
-                  />
-                )
-              ) : (
-                <span className="text-xs text-slate-400">—</span>
-              )}
-            </td>
-
-            {/* Qty */}
-            <td className="px-2 py-2">
-              <input
-                type="number"
-                min={0}
-                value={item.qty}
-                onChange={(e) => updateItemQty(item.itemId, item.size, parseInt(e.target.value) || 0)}
-                className="w-16 px-2 py-1 text-xs text-center border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-navy-500"
-              />
-            </td>
-
-            {/* Backorder toggle */}
-            <td className="px-2 py-2 text-center">
-              {item.qty > 0 && (
-                <input
-                  type="checkbox"
-                  checked={item.isBackorder}
-                  onChange={() => toggleBackorder(item.itemId, item.size)}
-                  title="Mark as backorder"
-                  className="rounded border-slate-300 text-purple-600 focus:ring-purple-500"
-                />
-              )}
-            </td>
-
-            {/* Action: "+" on primary for sized items, "×" on sub-rows */}
-            <td className="px-2 py-2">
-              {isPrimary && item.needsSize ? (
-                <button
-                  onClick={handleAddSize}
-                  disabled={hasUnsizedEntry}
-                  title="Add another size"
-                  className={`p-1 rounded transition-colors ${
-                    hasUnsizedEntry
-                      ? "text-slate-200 cursor-not-allowed"
-                      : "text-slate-400 hover:text-navy-600 hover:bg-navy-50"
-                  }`}
-                >
-                  <Plus size={14} />
-                </button>
-              ) : !isPrimary ? (
-                <button
-                  onClick={() => removeItem(item.itemId, item.size)}
-                  title="Remove this size"
-                  className="p-1 text-slate-300 hover:text-red-500 transition-colors"
-                >
-                  <X size={14} />
-                </button>
-              ) : (
-                <button
-                  onClick={() => removeItem(item.itemId, item.size)}
-                  className="text-slate-300 hover:text-red-500 transition-colors"
-                >
-                  &times;
-                </button>
-              )}
-            </td>
-          </tr>
-        );
-      })}
-    </>
+function Field({
+  label,
+  value,
+  type,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  type: "text" | "email";
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-slate-700 mb-1">
+        {label}
+      </label>
+      <input
+        type={type}
+        required
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full h-11 px-3 text-base border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy-500"
+      />
+    </div>
   );
 }

@@ -100,9 +100,15 @@ export async function commitIssue(params: CommitIssueParams): Promise<string> {
     ? `Issued ${nonBackorderCount} item(s) to ${member.firstName} ${member.lastName}.`
     : `Issued ${nonBackorderCount} item(s) (no recipient).`;
 
-  // Audit event in same batch
+  // Audit event in same batch. `type: "issue"` stays broad so the Audit Log
+  // filter tab (which queries by exact `type` match) still catches every
+  // issuance variant. The specific TransactionType is stamped into a
+  // separate `transactionType` field so future queries can distinguish
+  // onboarding_issue / single_issue / exchange / ocr_import without needing
+  // to widen AuditEventType and update the existing filter tabs.
   addAuditEventToBatch(batch, {
     type: "issue",
+    transactionType: type,
     actorUid: actor.id,
     actorName: actor.name,
     actorRole: actor.role,

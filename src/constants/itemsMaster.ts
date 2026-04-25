@@ -215,7 +215,7 @@ export const ITEMS_MASTER: ItemMasterEntry[] = [
 
   // ── CLOTHING (Team Issued) ────────────────────────────────────────────
   {
-    name: "CA-TF2 Short Sleeve",
+    name: "CA-TF2 Short Sleeve T-shirt",
     category: "clothing",
     catalogCategory: "clothing-shirts",
     isIssuedByTeam: true,
@@ -224,7 +224,7 @@ export const ITEMS_MASTER: ItemMasterEntry[] = [
     packing: { ...p0, deploymentUniform: 1 },
   },
   {
-    name: "CA-TF2 Long Sleeve",
+    name: "CA-TF2 Long Sleeve T-shirt",
     category: "clothing",
     catalogCategory: "clothing-shirts",
     isIssuedByTeam: true,
@@ -233,13 +233,21 @@ export const ITEMS_MASTER: ItemMasterEntry[] = [
     packing: { ...p0, bag24hr: 1, coldWeatherBag: 4 },
   },
   {
-    name: "CA-TF2 Polo",
+    name: "CA-TF2 Polo Short Sleeve",
     category: "clothing",
     catalogCategory: "clothing-shirts",
     isIssuedByTeam: true,
     needsSize: true,
     qtyRequired: 1,
-    notes: "( ) Short Sleeve  ( ) Long Sleeve",
+    packing: { ...p0, rollerBag: 1 },
+  },
+  {
+    name: "CA-TF2 Polo Long Sleeve",
+    category: "clothing",
+    catalogCategory: "clothing-shirts",
+    isIssuedByTeam: true,
+    needsSize: true,
+    qtyRequired: 1,
     packing: { ...p0, rollerBag: 1 },
   },
   {
@@ -270,24 +278,6 @@ export const ITEMS_MASTER: ItemMasterEntry[] = [
     packing: { ...p0, bag24hr: 1 },
   },
   {
-    name: "Thermal Top Medium Wt.",
-    category: "clothing",
-    catalogCategory: "clothing-outerwear",
-    isIssuedByTeam: true,
-    needsSize: true,
-    qtyRequired: 1,
-    packing: { ...p0, coldWeatherBag: 1 },
-  },
-  {
-    name: "Thermal Bottom Medium Wt.",
-    category: "clothing",
-    catalogCategory: "clothing-outerwear",
-    isIssuedByTeam: true,
-    needsSize: true,
-    qtyRequired: 1,
-    packing: { ...p0, coldWeatherBag: 1 },
-  },
-  {
     name: "Boot Gaiters Pair",
     category: "clothing",
     catalogCategory: "clothing-outerwear",
@@ -305,7 +295,7 @@ export const ITEMS_MASTER: ItemMasterEntry[] = [
     packing: { ...p0, bag24hr: 1 },
   },
   {
-    name: "USAR Ball Cap",
+    name: "Baseball Hat",
     category: "clothing",
     catalogCategory: "clothing-headwear",
     isIssuedByTeam: true,
@@ -433,7 +423,7 @@ export const ITEMS_MASTER: ItemMasterEntry[] = [
 
   // ── PPE & EQUIPMENT ──────────────────────────────────────────────────
   {
-    name: "Work Gloves",
+    name: "Gloves, Work (Leather)",
     category: "ppe",
     catalogCategory: "ppe-equipment",
     isIssuedByTeam: true,
@@ -442,7 +432,7 @@ export const ITEMS_MASTER: ItemMasterEntry[] = [
     packing: { ...p0, deploymentUniform: 1 },
   },
   {
-    name: "Cold Weather Work Gloves",
+    name: "Gloves, Cold Weather Work",
     category: "ppe",
     catalogCategory: "ppe-equipment",
     isIssuedByTeam: true,
@@ -451,7 +441,7 @@ export const ITEMS_MASTER: ItemMasterEntry[] = [
     packing: { ...p0, coldWeatherBag: 1 },
   },
   {
-    name: "Cold Weather Gloves",
+    name: "Gloves, Cold Weather (Insulated)",
     category: "ppe",
     catalogCategory: "ppe-equipment",
     isIssuedByTeam: true,
@@ -617,7 +607,7 @@ export const ITEMS_MASTER: ItemMasterEntry[] = [
 
   // ── HELMET & ACCESSORIES ─────────────────────────────────────────────
   {
-    name: "Helmet",
+    name: "Team Wendy Helmet",
     category: "helmet",
     catalogCategory: "head-protection",
     isIssuedByTeam: true,
@@ -659,7 +649,7 @@ export const ITEMS_MASTER: ItemMasterEntry[] = [
     packing: { ...p0, bag24hr: 1 },
   },
   {
-    name: "Decals",
+    name: "TW Helmet Decal - LA COUNTY FIRE",
     category: "helmet",
     catalogCategory: "head-protection",
     isIssuedByTeam: true,

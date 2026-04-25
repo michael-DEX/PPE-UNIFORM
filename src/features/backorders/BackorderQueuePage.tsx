@@ -22,10 +22,12 @@ import {
 import { db } from "../../lib/firebase";
 import { backorderedRef, orderListsRef } from "../../lib/firestore";
 import { useAuthContext } from "../../app/AuthProvider";
+import { useInventory } from "../../hooks/useInventory";
 import Spinner from "../../components/ui/Spinner";
 import EmptyState from "../../components/ui/EmptyState";
 import Modal from "../../components/ui/Modal";
-import type { BackorderItem, OrderListItem } from "../../types";
+import { subtitleFromItem } from "../../lib/itemSubtitle";
+import type { BackorderItem, Item, OrderListItem } from "../../types";
 
 // ── View mode ──
 
@@ -70,6 +72,11 @@ function formatDateTime(ts: { seconds: number }): string {
 
 export default function BackorderQueuePage() {
   const { user } = useAuthContext();
+  const { items: inventoryItems } = useInventory();
+  const itemById = useMemo(
+    () => new Map<string, Item>(inventoryItems.map((i) => [i.id, i])),
+    [inventoryItems],
+  );
 
   const [backorders, setBackorders] = useState<BackorderItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -319,12 +326,13 @@ export default function BackorderQueuePage() {
       ) : viewMode === "pending" ? (
         <PendingTable
           items={displayed}
+          itemById={itemById}
           onFulfill={setFulfillTarget}
           onAddToOrder={handleAddToOrderList}
           onCancel={setCancelTarget}
         />
       ) : (
-        <FulfilledTable items={displayed} />
+        <FulfilledTable items={displayed} itemById={itemById} />
       )}
 
       {/* Fulfill confirmation modal */}
@@ -425,11 +433,14 @@ export default function BackorderQueuePage() {
 
 function PendingTable({
   items,
+  itemById,
   onFulfill,
   onAddToOrder,
   onCancel,
 }: {
   items: BackorderItem[];
+  /** Catalog lookup for the mfr/model subtitle per row. */
+  itemById: Map<string, Item>;
   onFulfill: (item: BackorderItem) => void;
   onAddToOrder: (item: BackorderItem) => void;
   onCancel: (item: BackorderItem) => void;
@@ -470,13 +481,23 @@ function PendingTable({
                   {item.personnelName}
                 </span>
               </td>
-              <td className="px-4 py-3 text-gray-700">
-                {item.itemName}
-                {item.addedToOrderAt && (
-                  <span className="ml-2 inline-flex items-center rounded-full bg-blue-100 text-blue-700 px-1.5 py-0.5 text-[10px] font-medium">
-                    On Order
-                  </span>
-                )}
+              <td className="px-4 py-3 text-gray-700 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="truncate">{item.itemName}</span>
+                  {item.addedToOrderAt && (
+                    <span className="inline-flex items-center rounded-full bg-blue-100 text-blue-700 px-1.5 py-0.5 text-[10px] font-medium shrink-0">
+                      On Order
+                    </span>
+                  )}
+                </div>
+                {(() => {
+                  const subtitle = subtitleFromItem(itemById.get(item.itemId));
+                  return subtitle ? (
+                    <p className="text-xs text-slate-500 truncate mt-0.5">
+                      {subtitle}
+                    </p>
+                  ) : null;
+                })()}
               </td>
               <td className="px-4 py-3 text-gray-500">
                 {item.size ?? "\u2014"}
@@ -537,7 +558,14 @@ function PendingTable({
 
 // ── Fulfilled Table ──
 
-function FulfilledTable({ items }: { items: BackorderItem[] }) {
+function FulfilledTable({
+  items,
+  itemById,
+}: {
+  items: BackorderItem[];
+  /** Catalog lookup for the mfr/model subtitle per row. */
+  itemById: Map<string, Item>;
+}) {
   return (
     <div className="bg-white rounded-xl border border-slate-200 overflow-auto">
       <table className="w-full text-sm text-left">
@@ -577,13 +605,23 @@ function FulfilledTable({ items }: { items: BackorderItem[] }) {
                   {item.personnelName}
                 </span>
               </td>
-              <td className="px-4 py-3 text-gray-700">
-                {item.itemName}
-                {item.addedToOrderAt && (
-                  <span className="ml-2 inline-flex items-center rounded-full bg-blue-100 text-blue-700 px-1.5 py-0.5 text-[10px] font-medium">
-                    On Order
-                  </span>
-                )}
+              <td className="px-4 py-3 text-gray-700 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="truncate">{item.itemName}</span>
+                  {item.addedToOrderAt && (
+                    <span className="inline-flex items-center rounded-full bg-blue-100 text-blue-700 px-1.5 py-0.5 text-[10px] font-medium shrink-0">
+                      On Order
+                    </span>
+                  )}
+                </div>
+                {(() => {
+                  const subtitle = subtitleFromItem(itemById.get(item.itemId));
+                  return subtitle ? (
+                    <p className="text-xs text-slate-500 truncate mt-0.5">
+                      {subtitle}
+                    </p>
+                  ) : null;
+                })()}
               </td>
               <td className="px-4 py-3 text-gray-500">
                 {item.size ?? "\u2014"}

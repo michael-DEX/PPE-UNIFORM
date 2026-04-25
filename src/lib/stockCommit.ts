@@ -17,9 +17,11 @@ export interface StockAdjustItem {
   qtyBefore: number;
 }
 
+export type StockAdjustType = Extract<AuditEventType, "receive" | "adjust">;
+
 export interface CommitStockAdjustParams {
   actor: LogisticsUser;
-  type: AuditEventType; // "receive" or "adjust"
+  type: StockAdjustType;
   items: StockAdjustItem[];
   notes?: string;
 }
@@ -50,7 +52,7 @@ export async function commitStockAdjust(
 
   // Write a lightweight transaction record for stock adjustments
   batch.set(txRef, {
-    type: type === "receive" ? "single_issue" : "single_issue",
+    type,
     personnelId: null,
     personnelName: null,
     personnelAuthUid: null,

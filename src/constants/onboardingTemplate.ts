@@ -32,27 +32,26 @@ export const ONBOARDING_TEMPLATE_ITEM_NAMES: string[] = [
   "Belt",
 
   // Clothing (Team Issued)
-  "CA-TF2 Short Sleeve",
-  "CA-TF2 Long Sleeve",
-  "CA-TF2 Polo",
+  "CA-TF2 Short Sleeve T-shirt",
+  "CA-TF2 Long Sleeve T-shirt",
+  "CA-TF2 Polo Short Sleeve",
+  "CA-TF2 Polo Long Sleeve",
   "Water Shirt",
   "Boardshorts",
   "3-in-1 Parka",
   "Thermal Top Light Wt.",
   "Thermal Bottom Light Wt.",
-  "Thermal Top Medium Wt.",
-  "Thermal Bottom Medium Wt.",
   "Boot Gaiters Pair",
   "Rain Pants",
-  "USAR Ball Cap",
+  "Baseball Hat",
   "Boonie Hat",
   "Beanie",
   "Head/Neck Gaiter",
 
   // PPE & Equipment
-  "Work Gloves",
-  "Cold Weather Work Gloves",
-  "Cold Weather Gloves",
+  "Gloves, Cold Weather (Insulated)",
+  "Gloves, Cold Weather Work",
+  "Gloves, Work (Leather)",
   "WMD Kit (Scott Mask, Adapters, Bag)",
   "Respirator Face Piece",
   "Respirator Cartridge Set",
@@ -74,12 +73,12 @@ export const ONBOARDING_TEMPLATE_ITEM_NAMES: string[] = [
   "Chemlight",
 
   // Helmet & Accessories
-  "Helmet",
+  "Team Wendy Helmet",
   "Goggles",
   "Headlamp",
   "Magpul Rails",
   "Vent Covers",
-  "Decals",
+  "TW Helmet Decal - LA COUNTY FIRE",
 
   // Sleeping Bag & Accessories
   "Emergency Bivy Sack",

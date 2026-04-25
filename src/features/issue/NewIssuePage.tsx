@@ -12,6 +12,10 @@ import Tabs from "../../components/ui/Tabs";
 import Badge from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
 import Spinner from "../../components/ui/Spinner";
+import { useToast } from "../../components/ui/Toast";
+import { compareSizes } from "../../lib/sizeOrder";
+import { safeQty } from "../../lib/qty";
+import { subtitleFromItem } from "../../lib/itemSubtitle";
 import type { Item, Personnel, CartItem } from "../../types";
 
 interface IssueDraft {
@@ -47,6 +51,7 @@ function IssueFlow() {
   const [step, setStep] = useState(0);
   const { member, cartItems, clearCart, addItem } = useIssueCart();
   const { logisticsUser } = useAuthContext();
+  const toast = useToast();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [submitting, setSubmitting] = useState(false);
@@ -82,6 +87,9 @@ function IssueFlow() {
       setSuccess(txId);
     } catch (err) {
       console.error("Issue failed:", err);
+      toast.error(
+        err instanceof Error ? err.message : "Failed to issue items.",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -363,7 +371,9 @@ function GearRow({
   onAdd: (cartItem: CartItem) => void;
   onRemove: (size: string | null) => void;
 }) {
-  const sizes = Object.entries(item.sizeMap || {});
+  const sizes = Object.entries(item.sizeMap || {}).sort(([a], [b]) =>
+    compareSizes(a, b),
+  );
   const [selectedSize, setSelectedSize] = useState(() => {
     // Pre-fill from member sizes
     if (member?.sizes) {
@@ -379,18 +389,29 @@ function GearRow({
 
       if (preferred && sizes.some(([s]) => s === preferred)) return preferred;
     }
-    return sizes[0]?.[0] ?? "one-size";
+    // Prefer the first in-stock size in canonical sort order. Fall back to
+    // first sorted entry if nothing has stock (backorder flow activates).
+    const firstInStock = sizes.find(([, s]) => safeQty(s?.qty) > 0);
+    return firstInStock?.[0] ?? sizes[0]?.[0] ?? "one-size";
   });
 
-  const stock = item.sizeMap?.[selectedSize]?.qty ?? 0;
+  const stock = safeQty(item.sizeMap?.[selectedSize]?.qty);
   const cartKey = `${item.id}::${selectedSize}`;
   const isInCart = inCart.has(cartKey);
 
   return (
     <tr className="border-b border-slate-100 hover:bg-slate-50">
-      <td className="px-4 py-3">
-        <span className="font-medium text-slate-900">{item.name}</span>
-        {item.notes && <span className="text-xs text-slate-400 block">{item.notes}</span>}
+      <td className="px-4 py-3 min-w-0">
+        <span className="font-medium text-slate-900 block truncate">{item.name}</span>
+        {(() => {
+          const subtitle = subtitleFromItem(item);
+          return subtitle ? (
+            <span className="text-xs text-slate-500 block truncate mt-0.5">
+              {subtitle}
+            </span>
+          ) : null;
+        })()}
+        {item.notes && <span className="text-xs text-slate-400 block truncate">{item.notes}</span>}
       </td>
       <td className="px-4 py-3">
         {sizes.length > 1 ? (
@@ -401,7 +422,7 @@ function GearRow({
           >
             {sizes.map(([s, v]) => (
               <option key={s} value={s}>
-                {s} ({(v as { qty: number }).qty})
+                {s} ({safeQty((v as { qty?: unknown }).qty)})
               </option>
             ))}
           </select>

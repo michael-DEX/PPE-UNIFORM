@@ -7,6 +7,7 @@ import { useAuthContext } from "../../app/AuthProvider";
 import Badge from "../../components/ui/Badge";
 import Spinner from "../../components/ui/Spinner";
 import ItemDetailModal from "../inventory/ItemDetailModal";
+import { subtitleFromItem } from "../../lib/itemSubtitle";
 import type { Item } from "../../types";
 
 export default function DashboardPage() {
@@ -21,6 +22,9 @@ export default function DashboardPage() {
   const lowStockItems = items.filter((i) => i.isIssuedByTeam && isLowStock(i));
   const outOfStockItems = items.filter((i) => i.isIssuedByTeam && isOutOfStock(i));
   const activeMembers = members.filter((m) => m.isActive);
+  const teamItemCount = items.filter((i) => i.isIssuedByTeam).length;
+  const alertCount = outOfStockItems.length + lowStockItems.length;
+  const alertsActive = outOfStockItems.length > 0;
 
   if (loading) {
     return (
@@ -31,7 +35,8 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="max-w-2xl mx-auto p-4 sm:p-6 space-y-4">
+      {/* Heading */}
       <div>
         <h1 className="text-2xl font-bold text-navy-900">
           Welcome back{logisticsUser ? `, ${logisticsUser.name.split(" ")[0]}` : ""}
@@ -39,57 +44,71 @@ export default function DashboardPage() {
         <p className="text-sm text-slate-500 mt-1">CA-TF2 / USA-02 PPE Logistics</p>
       </div>
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <QuickAction icon={<ShoppingCart size={20} />} label="Issue Gear" onClick={() => navigate("/logistics/inventory")} />
-        <QuickAction icon={<UserPlus size={20} />} label="Onboarding" onClick={() => navigate("/logistics/onboarding")} />
-        <QuickAction icon={<Package size={20} />} label="Inventory" onClick={() => navigate("/logistics/inventory")} />
-        <QuickAction icon={<Users size={20} />} label="Personnel" onClick={() => navigate("/logistics/personnel")} />
+      {/* Stats strip */}
+      <div className="bg-white rounded-xl border border-slate-200 grid grid-cols-3 px-2 py-3">
+        <StatCell label="Items" value={teamItemCount} />
+        <StatCell label="Members" value={activeMembers.length} />
+        <StatCell label="Alerts" value={alertCount} alert={alertsActive} last />
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatCard
-          label="Total Items"
-          value={items.filter((i) => i.isIssuedByTeam).length}
-          sub={`${items.filter((i) => i.isIssuedByTeam).length} item types tracked`}
+      {/* Quick actions strip */}
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden grid grid-cols-4">
+        <QuickAction
+          icon={<ShoppingCart size={20} />}
+          label="Issue"
+          onClick={() => navigate("/logistics/inventory")}
         />
-        <StatCard label="Active Members" value={activeMembers.length} sub={`${members.length} total`} />
-        <StatCard
-          label="Alerts"
-          value={lowStockItems.length + outOfStockItems.length}
-          sub={`${outOfStockItems.length} out of stock, ${lowStockItems.length} low stock`}
-          alert={outOfStockItems.length > 0}
+        <QuickAction
+          icon={<Package size={20} />}
+          label="Inventory"
+          onClick={() => navigate("/logistics/inventory")}
+        />
+        <QuickAction
+          icon={<Users size={20} />}
+          label="People"
+          onClick={() => navigate("/logistics/personnel")}
+        />
+        <QuickAction
+          icon={<UserPlus size={20} />}
+          label="Onboard"
+          onClick={() => navigate("/logistics/onboarding")}
+          last
         />
       </div>
 
-      {/* Low Stock Alerts */}
-      {(outOfStockItems.length > 0 || lowStockItems.length > 0) && (
+      {/* Stock Alerts — clicking a row opens the full ItemDetailModal
+          (stock table, adjust, issue). Quick-add-to-cart is reachable from
+          the inventory list itself. */}
+      {alertCount > 0 && (
         <div className="bg-white rounded-xl border border-slate-200">
-          <div className="px-5 py-4 border-b border-slate-200 flex items-center gap-2">
+          <div className="px-4 py-3 border-b border-slate-200 flex items-center gap-2">
             <AlertTriangle size={16} className="text-amber-500" />
             <h2 className="text-sm font-semibold text-slate-700">Stock Alerts</h2>
           </div>
           <div className="divide-y divide-slate-100">
             {[...outOfStockItems, ...lowStockItems].slice(0, 10).map((item) => {
               const out = isOutOfStock(item);
+              const subtitle = subtitleFromItem(item);
               return (
                 <button
                   key={item.id}
                   onClick={() => setSelectedItem(item)}
-                  className="w-full px-5 py-3 flex items-center justify-between hover:bg-blue-50/50 text-left transition-colors"
+                  className="w-full px-4 py-3 flex items-center justify-between gap-3 hover:bg-slate-50 active:bg-slate-100 text-left transition-colors"
                 >
-                  <div>
-                    <span className="text-sm font-medium text-slate-900">{item.name}</span>
-                    <div className="flex gap-1 mt-1 flex-wrap">
-                      {Object.entries(item.sizeMap || {}).filter(([_, s]) => s.qty <= (s.lowStockThreshold ?? item.lowStockThreshold ?? 5)).map(([size, s]) => (
-                        <span key={size} className={`text-xs px-1.5 py-0.5 rounded ${s.qty <= 0 ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"}`}>
-                          {size}: {s.qty}
-                        </span>
-                      ))}
-                    </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-slate-900 truncate">
+                      {item.name}
+                    </p>
+                    {subtitle && (
+                      <p className="text-xs text-slate-500 truncate mt-0.5">
+                        {subtitle}
+                      </p>
+                    )}
                   </div>
-                  <Badge variant={out ? "danger" : "warning"}>
+                  <Badge
+                    variant={out ? "danger" : "warning"}
+                    className="whitespace-nowrap"
+                  >
                     {out ? "Out of Stock" : "Low Stock"}
                   </Badge>
                 </button>
@@ -109,24 +128,66 @@ export default function DashboardPage() {
   );
 }
 
-function QuickAction({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
+// ── Stats strip cell ──────────────────────────────────────────────────────
+
+function StatCell({
+  label,
+  value,
+  alert,
+  last,
+}: {
+  label: string;
+  value: number;
+  alert?: boolean;
+  last?: boolean;
+}) {
   return (
-    <button
-      onClick={onClick}
-      className="flex flex-col items-center gap-2 p-4 bg-white rounded-xl border border-slate-200 hover:border-navy-300 hover:shadow-sm transition-all"
+    <div
+      className={`flex flex-col items-center justify-center py-1 ${
+        last ? "" : "border-r border-slate-200"
+      }`}
     >
-      <div className="text-navy-600">{icon}</div>
-      <span className="text-sm font-medium text-slate-700">{label}</span>
-    </button>
+      <span
+        className={`text-2xl font-bold leading-tight ${
+          alert ? "text-amber-600" : "text-navy-900"
+        }`}
+      >
+        {value}
+      </span>
+      <span
+        className={`text-[10px] font-medium uppercase tracking-wider mt-0.5 ${
+          alert ? "text-amber-600" : "text-slate-500"
+        }`}
+      >
+        {label}
+      </span>
+    </div>
   );
 }
 
-function StatCard({ label, value, sub, alert }: { label: string; value: number; sub?: string; alert?: boolean }) {
+// ── Quick action button ──────────────────────────────────────────────────
+
+function QuickAction({
+  icon,
+  label,
+  onClick,
+  last,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  last?: boolean;
+}) {
   return (
-    <div className={`bg-white rounded-xl border p-5 ${alert ? "border-amber-200" : "border-slate-200"}`}>
-      <p className="text-sm text-slate-500">{label}</p>
-      <p className={`text-3xl font-bold mt-1 ${alert ? "text-amber-600" : "text-navy-900"}`}>{value}</p>
-      {sub && <p className="text-xs text-slate-400 mt-1">{sub}</p>}
-    </div>
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex flex-col items-center gap-1 py-3 px-1 min-h-[56px] hover:bg-slate-50 active:bg-slate-100 transition-colors ${
+        last ? "" : "border-r border-slate-100"
+      }`}
+    >
+      <span className="text-navy-600">{icon}</span>
+      <span className="text-xs font-medium text-slate-700">{label}</span>
+    </button>
   );
 }

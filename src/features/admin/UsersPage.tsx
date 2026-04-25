@@ -17,13 +17,54 @@
  */
 
 import { useState, useEffect } from "react";
-import { onSnapshot, doc, setDoc, deleteDoc, addDoc, collection, serverTimestamp } from "firebase/firestore";
-import { sendPasswordResetEmail } from "firebase/auth";
-import { db, auth } from "../../lib/firebase";
+import { onSnapshot, doc, setDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
+import { initializeApp, getApps } from "firebase/app";
+import {
+  getAuth,
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
+  signOut,
+  type Auth,
+} from "firebase/auth";
+import { db, auth, firebaseConfig } from "../../lib/firebase";
 import { usersRef } from "../../lib/firestore";
 import { useAuthContext } from "../../app/AuthProvider";
+import { useToast } from "../../components/ui/Toast";
 import type { LogisticsUser, LogisticsRole } from "../../types";
 import { Trash2, Plus, Check, Mail, KeyRound } from "lucide-react";
+
+// Secondary Firebase app used ONLY for creating new Auth users during invite.
+// Using the primary auth here would sign the admin out of their own session.
+function getInviteAuth(): Auth {
+  const existing = getApps().find((a) => a.name === "invite");
+  const app = existing ?? initializeApp(firebaseConfig, "invite");
+  return getAuth(app);
+}
+
+// 32-char base64url CSPRNG password used only as a throwaway on user creation;
+// the user never sees it — they'll set a real password via the reset-email link.
+function generateTempPassword(): string {
+  const bytes = new Uint8Array(24);
+  crypto.getRandomValues(bytes);
+  let bin = "";
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function inviteErrorMessage(err: unknown): string {
+  const code =
+    err && typeof err === "object" && "code" in err
+      ? String((err as { code: unknown }).code)
+      : "";
+  switch (code) {
+    case "auth/email-already-in-use":
+      return "A user with that email already exists.";
+    case "auth/invalid-email":
+      return "That email address isn't valid.";
+    default:
+      return err instanceof Error ? err.message : "Failed to invite user.";
+  }
+}
 
 const ROLE_LABELS: Record<LogisticsRole, string> = {
   admin: "Admin",
@@ -47,12 +88,17 @@ const emptyNewUser: NewUserForm = { email: "", name: "", role: "staff" };
 
 export default function UsersPage() {
   const { isAdmin, logisticsUser } = useAuthContext();
+  const toast = useToast();
   const [users, setUsers] = useState<LogisticsUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
   const [newUser, setNewUser] = useState<NewUserForm>(emptyNewUser);
   const [inviting, setInviting] = useState(false);
-  const [inviteSuccess, setInviteSuccess] = useState<{ email: string; resetLink: string } | null>(null);
+  const [inviteSuccess, setInviteSuccess] = useState<{
+    email: string;
+    resetLink: string;
+    kind: "invite" | "reset";
+  } | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -107,7 +153,7 @@ export default function UsersPage() {
     setError(null);
     try {
       await sendPasswordResetEmail(auth, email);
-      setInviteSuccess({ email, resetLink: "" });
+      setInviteSuccess({ email, resetLink: "", kind: "reset" });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send reset email");
     } finally {
@@ -140,51 +186,60 @@ export default function UsersPage() {
       setError("Not signed in.");
       return;
     }
-    if (!newUser.email.trim() || !newUser.name.trim()) {
-      setError("Email and name are both required.");
-      return;
-    }
-    setInviting(true);
     const email = newUser.email.trim();
     const name = newUser.name.trim();
     const role = newUser.role;
+    if (!email || !name) {
+      setError("Email and name are both required.");
+      return;
+    }
+
+    setInviting(true);
+    const inviteAuth = getInviteAuth();
     try {
-      const inviteRef = await addDoc(collection(db, "user_invites"), {
+      // Create the Auth user on the secondary app instance so the admin's
+      // primary session is not replaced by the newly-created user's credentials.
+      const cred = await createUserWithEmailAndPassword(
+        inviteAuth,
+        email,
+        generateTempPassword(),
+      );
+      const uid = cred.user.uid;
+
+      // Immediately drop the secondary session — we only needed the uid.
+      await signOut(inviteAuth);
+
+      // Write the logistics user record. Firestore rules already require
+      // isAdmin() for writes to /users/{userId}.
+      await setDoc(doc(db, "users", uid), {
         email,
         name,
         role,
-        requestedBy: logisticsUser.id,
-        status: "pending",
+        isActive: true,
         createdAt: serverTimestamp(),
+        createdBy: logisticsUser.id,
       });
 
-      // Watch the invite doc for completion
-      const timeout = setTimeout(() => {
-        unsub();
-        setInviting(false);
-        setError("Invite is taking longer than expected. Check Firebase Auth console manually.");
-      }, 30000);
+      // Send the "set your password" email from the PRIMARY auth, so the
+      // link carries the app's normal action-code settings.
+      await sendPasswordResetEmail(auth, email);
 
-      const unsub = onSnapshot(inviteRef, (snap) => {
-        const d = snap.data();
-        if (!d) return;
-        if (d.status === "success") {
-          clearTimeout(timeout);
-          unsub();
-          setInviteSuccess({ email, resetLink: d.resetLink ?? "" });
-          setNewUser(emptyNewUser);
-          setAdding(false);
-          setInviting(false);
-        } else if (d.status === "failed") {
-          clearTimeout(timeout);
-          unsub();
-          setError(d.error ?? "Invite failed.");
-          setInviting(false);
-        }
-      });
+      setInviteSuccess({ email, resetLink: "", kind: "invite" });
+      toast.success(`Invite sent to ${email}`);
+      setNewUser(emptyNewUser);
+      setAdding(false);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to invite user";
+      // Best-effort cleanup — if we created the Auth user but later steps
+      // failed, leave it; admin can re-invite and we'll hit email-already-in-use.
+      try {
+        await signOut(inviteAuth);
+      } catch {
+        /* ignore */
+      }
+      const msg = inviteErrorMessage(err);
       setError(msg);
+      toast.error(msg);
+    } finally {
       setInviting(false);
     }
   }
@@ -240,10 +295,13 @@ export default function UsersPage() {
             <Mail size={18} className="text-emerald-600 shrink-0 mt-0.5" />
             <div className="flex-1">
               <p className="text-sm font-semibold text-emerald-900">
-                {inviteSuccess.resetLink ? "Invitation sent to" : "Password reset email sent to"} {inviteSuccess.email}
+                {inviteSuccess.kind === "invite"
+                  ? `Invite sent to ${inviteSuccess.email}`
+                  : `Password reset email sent to ${inviteSuccess.email}`}
               </p>
               <p className="text-xs text-emerald-700 mt-1">
-                Firebase emailed a password-reset link. The user clicks it, sets their password, and signs in.
+                Firebase will email them a link to set their password. Once they
+                do, they can sign in at the login page.
               </p>
               {inviteSuccess.resetLink && (
                 <details className="mt-2">

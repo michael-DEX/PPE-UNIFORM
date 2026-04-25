@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Users, UserPlus } from "lucide-react";
+import { Users, UserPlus, ChevronRight } from "lucide-react";
 import { usePersonnel } from "../../hooks/usePersonnel";
 import SearchInput from "../../components/ui/SearchInput";
 import Badge from "../../components/ui/Badge";
@@ -17,6 +17,12 @@ const ROLE_LABELS: Record<string, string> = {
   task_force_leader: "TF Leader",
   k9_specialist: "K9",
 };
+
+function getInitials(firstName: string, lastName: string): string {
+  const f = firstName.trim().charAt(0).toUpperCase();
+  const l = lastName.trim().charAt(0).toUpperCase();
+  return `${f}${l}` || "?";
+}
 
 export default function PersonnelPage() {
   const { members, loading } = usePersonnel();
@@ -76,38 +82,58 @@ export default function PersonnelPage() {
         />
       ) : (
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 bg-slate-50">
-                <th className="text-left px-4 py-3 font-medium text-slate-600">Name</th>
-                <th className="text-left px-4 py-3 font-medium text-slate-600">Email</th>
-                <th className="text-left px-4 py-3 font-medium text-slate-600">Role</th>
-                <th className="text-left px-4 py-3 font-medium text-slate-600">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((m) => (
-                <tr
+          <ul>
+            {filtered.map((m) => {
+              const roleLabel = m.role ? ROLE_LABELS[m.role] || m.role : "no role";
+              return (
+                <li
                   key={m.id}
-                  onClick={() => navigate(`/logistics/personnel/${m.id}`)}
-                  className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors"
+                  className="border-b border-slate-100 last:border-b-0"
                 >
-                  <td className="px-4 py-3 font-medium text-slate-900">
-                    {m.lastName}, {m.firstName}
-                  </td>
-                  <td className="px-4 py-3 text-slate-600">{m.email}</td>
-                  <td className="px-4 py-3">
-                    {m.role && <Badge>{ROLE_LABELS[m.role] || m.role}</Badge>}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge variant={m.isActive ? "success" : "default"}>
-                      {m.isActive ? "Active" : "Inactive"}
-                    </Badge>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/logistics/personnel/${m.id}`)}
+                    aria-label={`${m.firstName} ${m.lastName}, ${roleLabel}, ${m.isActive ? "Active" : "Inactive"}`}
+                    className="w-full text-left flex items-center gap-3 px-4 py-3 hover:bg-slate-50 active:bg-slate-100 transition-colors"
+                  >
+                    {/* Avatar */}
+                    <span
+                      aria-hidden="true"
+                      className="shrink-0 h-10 w-10 rounded-full bg-navy-100 text-navy-700 inline-flex items-center justify-center text-sm font-semibold"
+                    >
+                      {getInitials(m.firstName, m.lastName)}
+                    </span>
+
+                    {/* Name + email */}
+                    <span className="flex-1 min-w-0 flex flex-col">
+                      <span className="font-medium text-slate-900 text-sm truncate">
+                        {m.lastName}, {m.firstName}
+                      </span>
+                      <span className="text-xs text-slate-500 truncate">
+                        {m.email}
+                      </span>
+                    </span>
+
+                    {/* Role + status + chevron */}
+                    <span className="flex items-center gap-2 shrink-0">
+                      {m.role && (
+                        <Badge className="whitespace-nowrap">
+                          {ROLE_LABELS[m.role] || m.role}
+                        </Badge>
+                      )}
+                      <Badge
+                        variant={m.isActive ? "success" : "default"}
+                        className="whitespace-nowrap"
+                      >
+                        {m.isActive ? "Active" : "Inactive"}
+                      </Badge>
+                      <ChevronRight className="h-4 w-4 text-slate-400" />
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
         </div>
       )}
 

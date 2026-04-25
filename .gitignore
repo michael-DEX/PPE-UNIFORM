@@ -22,3 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+.firebase/
+functions/lib/
+*.xlsx
+~$*
+/PPE/
+/Untitled/
+.env.local

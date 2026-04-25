@@ -7,19 +7,24 @@ import {
   User,
   Clock,
   Package,
+  LogIn,
+  LogOut,
 } from "lucide-react";
-import { useAuditLog } from "../../hooks/useAuditLog";
+import { useAuditLog, type AuditFilterType } from "../../hooks/useAuditLog";
+import { useInventory } from "../../hooks/useInventory";
 import SearchInput from "../../components/ui/SearchInput";
 import Tabs from "../../components/ui/Tabs";
 import Badge from "../../components/ui/Badge";
 import Spinner from "../../components/ui/Spinner";
 import EmptyState from "../../components/ui/EmptyState";
-import type { AuditEvent, AuditEventType } from "../../types";
+import { subtitleFromItem } from "../../lib/itemSubtitle";
+import type { AuditEvent, AuditEventType, Item } from "../../types";
 
 // ── Constants ──
 
 const TYPE_TABS = [
   { id: "all", label: "All" },
+  { id: "access", label: "Access" },
   { id: "issue", label: "Issue" },
   { id: "receive", label: "Receive" },
   { id: "return", label: "Return" },
@@ -27,7 +32,7 @@ const TYPE_TABS = [
   { id: "scan", label: "Scan" },
 ];
 
-type BadgeVariant = "info" | "success" | "default" | "warning" | "backorder";
+type BadgeVariant = "info" | "success" | "default" | "warning" | "backorder" | "danger";
 
 const TYPE_BADGE_MAP: Record<AuditEventType, { label: string; variant: BadgeVariant }> = {
   issue: { label: "Issue", variant: "info" },
@@ -35,7 +40,29 @@ const TYPE_BADGE_MAP: Record<AuditEventType, { label: string; variant: BadgeVari
   return: { label: "Return", variant: "default" },
   adjust: { label: "Adjust", variant: "warning" },
   scan: { label: "Scan", variant: "backorder" },
+  login: { label: "Login", variant: "success" },
+  logout: { label: "Logout", variant: "default" },
+  item_create: { label: "Created", variant: "success" },
+  item_edit: { label: "Edited", variant: "warning" },
+  item_delete: { label: "Deleted", variant: "danger" },
+  onboarding_template_edit: { label: "Template", variant: "warning" },
 };
+
+// Fallback for any `type` value not in the map — old probe docs, future
+// event types that arrive before the page is redeployed, etc. Reading
+// TYPE_BADGE_MAP[event.type] directly would crash on `undefined.variant`
+// and white-screen the whole page, so every lookup goes through getBadge().
+const UNKNOWN_BADGE: { label: string; variant: BadgeVariant } = {
+  label: "Unknown",
+  variant: "default",
+};
+
+function getBadge(type: string): { label: string; variant: BadgeVariant } {
+  return (
+    (TYPE_BADGE_MAP as Record<string, { label: string; variant: BadgeVariant }>)[type] ??
+    UNKNOWN_BADGE
+  );
+}
 
 // ── Helpers ──
 
@@ -70,8 +97,8 @@ export default function AuditLogPage() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const { events, loading, error } = useAuditLog({
-    type: typeFilter === "all" ? undefined : (typeFilter as AuditEventType),
+  const { events, loading, loadingMore, error, hasMore, loadMore } = useAuditLog({
+    type: typeFilter === "all" ? undefined : (typeFilter as AuditFilterType),
     searchQuery: search || undefined,
     pageSize: 50,
   });
@@ -129,18 +156,32 @@ export default function AuditLogPage() {
           }
         />
       ) : (
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden divide-y divide-slate-100">
-          {events.map((event) => (
-            <AuditRow
-              key={event.id}
-              event={event}
-              expanded={expandedId === event.id}
-              onToggle={() =>
-                setExpandedId(expandedId === event.id ? null : event.id)
-              }
-            />
-          ))}
-        </div>
+        <>
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden divide-y divide-slate-100">
+            {events.map((event) => (
+              <AuditRow
+                key={event.id}
+                event={event}
+                expanded={expandedId === event.id}
+                onToggle={() =>
+                  setExpandedId(expandedId === event.id ? null : event.id)
+                }
+              />
+            ))}
+          </div>
+          {hasMore && (
+            <div className="flex justify-center pt-2">
+              <button
+                type="button"
+                onClick={loadMore}
+                disabled={loadingMore}
+                className="px-4 py-2 text-sm font-medium rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+              >
+                {loadingMore ? "Loading…" : "Load more"}
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -157,16 +198,31 @@ function AuditRow({
   expanded: boolean;
   onToggle: () => void;
 }) {
-  const badgeInfo = TYPE_BADGE_MAP[event.type];
+  const badgeInfo = getBadge(event.type);
+  // Access events (login/logout) are one-liners — no chevron, no expand.
+  // Unknown types fall through this check and render like commit events
+  // (chevron + expandable detail panel, which is guarded against missing
+  // transactionId / items).
+  const isAccessEvent = event.type === "login" || event.type === "logout";
+  const AccessIcon = event.type === "login" ? LogIn : LogOut;
 
   return (
     <div>
       <button
-        onClick={onToggle}
-        className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-slate-50 transition-colors"
+        onClick={isAccessEvent ? undefined : onToggle}
+        disabled={isAccessEvent}
+        className={`w-full text-left px-4 py-3 flex items-center gap-3 transition-colors ${
+          isAccessEvent ? "cursor-default" : "hover:bg-slate-50"
+        }`}
       >
         <span className="text-slate-400 flex-shrink-0">
-          {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+          {isAccessEvent ? (
+            <AccessIcon size={16} />
+          ) : expanded ? (
+            <ChevronDown size={16} />
+          ) : (
+            <ChevronRight size={16} />
+          )}
         </span>
 
         <Badge variant={badgeInfo.variant} className="flex-shrink-0 w-16 justify-center">
@@ -199,7 +255,7 @@ function AuditRow({
         </span>
       </button>
 
-      {expanded && <AuditDetail event={event} />}
+      {expanded && !isAccessEvent && <AuditDetail event={event} />}
     </div>
   );
 }
@@ -207,6 +263,15 @@ function AuditRow({
 // ── Expanded Detail ──
 
 function AuditDetail({ event }: { event: AuditEvent }) {
+  // Inventory lookup is scoped to the expanded detail component — only
+  // one AuditDetail renders at a time (single expanded event), so this
+  // doesn't spawn N subscriptions. Items may be missing (catalog item
+  // deleted after the audit event was written) — subtitleFromItem
+  // handles the undefined case gracefully.
+  const { items: inventoryItems } = useInventory();
+  const itemById = new Map<string, Item>(
+    inventoryItems.map((i) => [i.id, i]),
+  );
   return (
     <div className="px-4 pb-4 pl-12 space-y-3">
       {/* Who / What / When summary */}
@@ -228,9 +293,11 @@ function AuditDetail({ event }: { event: AuditEvent }) {
             What
           </div>
           <div className="text-slate-700">{event.action}</div>
-          <div className="text-xs text-slate-500 mt-0.5 font-mono">
-            TX: {event.transactionId.slice(0, 8)}...
-          </div>
+          {event.transactionId && (
+            <div className="text-xs text-slate-500 mt-0.5 font-mono">
+              TX: {event.transactionId.slice(0, 8)}...
+            </div>
+          )}
         </div>
         <div>
           <div className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-1">
@@ -244,7 +311,7 @@ function AuditDetail({ event }: { event: AuditEvent }) {
       </div>
 
       {/* Items table */}
-      {event.items.length > 0 && (
+      {event.items && event.items.length > 0 && (
         <div className="border border-slate-200 rounded-lg overflow-hidden">
           <table className="w-full text-sm">
             <thead>
@@ -265,13 +332,20 @@ function AuditDetail({ event }: { event: AuditEvent }) {
               </tr>
             </thead>
             <tbody>
-              {event.items.map((item, idx) => (
+              {event.items.map((item, idx) => {
+                const subtitle = subtitleFromItem(itemById.get(item.itemId));
+                return (
                 <tr
                   key={`${item.itemId}-${idx}`}
                   className="border-b border-slate-100 last:border-0"
                 >
-                  <td className="px-3 py-2 text-slate-900 font-medium">
-                    {item.itemName}
+                  <td className="px-3 py-2 text-slate-900 font-medium min-w-0">
+                    <p className="truncate">{item.itemName}</p>
+                    {subtitle && (
+                      <p className="text-xs text-slate-500 font-normal truncate mt-0.5">
+                        {subtitle}
+                      </p>
+                    )}
                   </td>
                   <td className="px-3 py-2 text-slate-500">
                     {item.size ?? "--"}
@@ -289,7 +363,8 @@ function AuditDetail({ event }: { event: AuditEvent }) {
                     <DeltaBadge delta={item.delta} />
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
