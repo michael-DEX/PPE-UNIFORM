@@ -14,11 +14,13 @@ import {
   Shield,
   Database,
   ListChecks,
+  Tags,
 } from "lucide-react";
 import { onSnapshot, query, where, orderBy } from "firebase/firestore";
 import { onboardingDraftsRef } from "../../lib/firestore";
-import { CATALOG_TREE, type CategoryNode } from "../../constants/catalogCategories";
+import { type CategoryNode } from "../../constants/catalogCategories";
 import { useAuthContext } from "../../app/AuthProvider";
+import { useCatalogCategories } from "../../hooks/useCatalogCategories";
 import type { OnboardingDraft } from "../../types";
 
 const navItems = [
@@ -37,7 +39,8 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ open, onClose, collapsed, onToggleCollapse }: SidebarProps) {
-  const { isAdmin } = useAuthContext();
+  const { isAdmin, isManager } = useAuthContext();
+  const { tree: categoryTree } = useCatalogCategories();
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -159,7 +162,7 @@ export default function Sidebar({ open, onClose, collapsed, onToggleCollapse }: 
                 All Items
               </button>
 
-              {CATALOG_TREE.map((node) => (
+              {categoryTree.map((node) => (
                 <SidebarCategoryItem
                   key={node.id}
                   node={node}
@@ -236,6 +239,35 @@ export default function Sidebar({ open, onClose, collapsed, onToggleCollapse }: 
             </NavLink>
           ))}
         </div>
+
+        {/* Admin-only section */}
+        {isManager && (
+          <div className="mt-4 pt-3 border-t border-gray-200 space-y-0.5">
+            {!collapsed && (
+              <p className="px-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
+                Settings
+              </p>
+            )}
+            <NavLink
+              to="/logistics/admin/categories"
+              title="Catalog Categories"
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${collapsed ? "md:justify-center md:px-2" : ""} ${
+                  isActive
+                    ? "bg-blue-50 text-blue-700 font-semibold border-l-2 border-blue-600"
+                    : "text-gray-700 hover:bg-gray-100"
+                }`
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  <Tags size={18} className={`shrink-0 ${isActive ? "text-blue-600" : "text-gray-500"}`} />
+                  <span className={collapsed ? "md:hidden" : ""}>Categories</span>
+                </>
+              )}
+            </NavLink>
+          </div>
+        )}
 
         {/* Admin-only section */}
         {isAdmin && (

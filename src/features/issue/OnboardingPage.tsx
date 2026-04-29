@@ -31,6 +31,7 @@ import {
 import { db } from "../../lib/firebase";
 import { useAuthContext } from "../../app/AuthProvider";
 import { useInventory } from "../../hooks/useInventory";
+import { useCatalogCategories } from "../../hooks/useCatalogCategories";
 import { commitIssue } from "../../lib/issueCommit";
 import { IssueCartProvider, useIssueCart } from "./IssueCartContext";
 import OnboardingItemCard from "./OnboardingItemCard";
@@ -58,6 +59,7 @@ function OnboardingFlow() {
   const { logisticsUser } = useAuthContext();
   const toast = useToast();
   const { items: firestoreItems, loading: itemsLoading } = useInventory();
+  const { tree: categoryTree } = useCatalogCategories();
   const {
     cartItems,
     member,
@@ -596,7 +598,7 @@ function OnboardingFlow() {
       { id: "all", label: "All", count: pendingCount },
       ...activeGroups.map((g) => ({
         id: g.category,
-        label: getCategoryLabel(g.category),
+        label: getCategoryLabel(g.category, categoryTree),
         count: g.remaining,
       })),
     ];
@@ -666,7 +668,7 @@ function OnboardingFlow() {
           <section key={group.category}>
             {categoryFilter === "all" && (
               <p className="text-xs text-slate-500 uppercase tracking-wider font-medium px-1 mt-1 mb-2">
-                {getCategoryLabel(group.category)} · {group.readyCount}/
+                {getCategoryLabel(group.category, categoryTree)} · {group.readyCount}/
                 {group.totalCount} ready
               </p>
             )}

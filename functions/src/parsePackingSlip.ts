@@ -1,8 +1,14 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import { GoogleGenAI } from "@google/genai";
+import { initializeApp } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
 
 const geminiApiKey = defineSecret("GEMINI_API_KEY");
+
+// Admin SDK for server-side authz checks.
+initializeApp();
+const adminDb = getFirestore();
 
 // Reject payloads over ~7 MiB of base64 (≈5 MiB image). Gemini refuses larger
 // inline images anyway and this stops us burning quota on garbage.
@@ -133,6 +139,18 @@ interface ParseResult {
   overallConfidence: "high" | "medium" | "low";
 }
 
+async function assertActiveLogisticsUser(uid: string): Promise<void> {
+  const snap = await adminDb.doc(`users/${uid}`).get();
+  if (!snap.exists) {
+    throw new HttpsError("permission-denied", "Not a logistics user");
+  }
+  const data = snap.data() ?? {};
+  const isActive = data.isActive === true || data.status === "active";
+  if (!isActive) {
+    throw new HttpsError("permission-denied", "Inactive logistics user");
+  }
+}
+
 export const parsePackingSlip = onCall(
   {
     secrets: [geminiApiKey],
@@ -145,6 +163,7 @@ export const parsePackingSlip = onCall(
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "Must be authenticated");
     }
+    await assertActiveLogisticsUser(request.auth.uid);
 
     const { imageBase64, mimeType: mime } = validateParseInput(request.data);
 

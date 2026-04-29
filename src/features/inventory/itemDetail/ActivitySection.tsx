@@ -61,7 +61,6 @@ export default function ActivitySection({ item }: { item: Item }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setLoading(true);
     const q = query(transactionsRef, orderBy("timestamp", "desc"), limit(200));
     const unsub = onSnapshot(
       q,

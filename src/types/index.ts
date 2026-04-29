@@ -229,7 +229,8 @@ export type AuditEventType =
   | "item_create"
   | "item_edit"
   | "item_delete"
-  | "onboarding_template_edit";
+  | "onboarding_template_edit"
+  | "catalog_categories_edit";
 
 export interface AuditItem {
   itemId: string;

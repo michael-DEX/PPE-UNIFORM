@@ -18,12 +18,7 @@ export function useGearLocker(personnelId: string | undefined) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!personnelId) {
-      setGearLocker([]);
-      setTransactions([]);
-      setLoading(false);
-      return;
-    }
+    if (!personnelId) return;
 
     const q = query(
       transactionsRef,
@@ -76,5 +71,6 @@ export function useGearLocker(personnelId: string | undefined) {
     return unsub;
   }, [personnelId]);
 
+  if (!personnelId) return { gearLocker: [], transactions: [], loading: false };
   return { gearLocker, transactions, loading };
 }

@@ -20,7 +20,8 @@ import Badge from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
 import EmptyState from "../../components/ui/EmptyState";
 import { Plus, FileDown, Printer, Trash2, Package, Check, Search, FolderTree, PenLine, ArrowLeft } from "lucide-react";
-import { CATALOG_TREE, categoryMatches, getCategoryLabel } from "../../constants/catalogCategories";
+import { categoryMatches, getCategoryLabel } from "../../constants/catalogCategories";
+import { useCatalogCategories } from "../../hooks/useCatalogCategories";
 import { compareSizes } from "../../lib/sizeOrder";
 import { subtitleFromItem } from "../../lib/itemSubtitle";
 import type { OrderList, OrderListItem, Item } from "../../types";
@@ -66,6 +67,7 @@ function downloadCSV(list: OrderList) {
 export default function OrderListsPage() {
   const { user } = useAuthContext();
   const { items: inventoryItems, loading: inventoryLoading } = useInventory();
+  const { tree: categoryTree } = useCatalogCategories();
 
   const [lists, setLists] = useState<OrderList[]>([]);
   const [loading, setLoading] = useState(true);
@@ -185,9 +187,11 @@ export default function OrderListsPage() {
           />
         ) : (
           <OrderListDetail
+            key={selectedList.id}
             list={selectedList}
             inventoryItems={inventoryItems}
             inventoryLoading={inventoryLoading}
+            categoryTree={categoryTree}
             onDelete={() => handleDelete(selectedList.id)}
             onBack={() => setSelectedId(null)}
           />
@@ -203,21 +207,18 @@ function OrderListDetail({
   list,
   inventoryItems,
   inventoryLoading,
+  categoryTree,
   onDelete,
   onBack,
 }: {
   list: OrderList;
   inventoryItems: Item[];
   inventoryLoading: boolean;
+  categoryTree: ReturnType<typeof useCatalogCategories>["tree"];
   onDelete: () => void;
   onBack: () => void;
 }) {
   const [editName, setEditName] = useState(list.name);
-
-  // Sync local name when switching lists
-  useEffect(() => {
-    setEditName(list.name);
-  }, [list.id, list.name]);
 
   async function saveName() {
     const trimmed = editName.trim();
@@ -387,6 +388,7 @@ function OrderListDetail({
           listId={list.id}
           inventoryItems={inventoryItems}
           inventoryLoading={inventoryLoading}
+          categoryTree={categoryTree}
         />
       </div>
     </div>
@@ -400,10 +402,12 @@ type AddMode = "search" | "browse" | "custom";
 function AddItemRow({
   listId,
   inventoryItems,
+  categoryTree,
 }: {
   listId: string;
   inventoryItems: Item[];
   inventoryLoading: boolean;
+  categoryTree: ReturnType<typeof useCatalogCategories>["tree"];
 }) {
   const [mode, setMode] = useState<AddMode>("search");
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
@@ -435,8 +439,8 @@ function AddItemRow({
 
   // Browse: get children of selected category
   const selectedCatNode = useMemo(
-    () => CATALOG_TREE.find((n) => n.id === selectedCat),
-    [selectedCat]
+    () => categoryTree.find((n) => n.id === selectedCat),
+    [selectedCat, categoryTree]
   );
   const subcategories = selectedCatNode?.children ?? [];
 
@@ -445,9 +449,11 @@ function AddItemRow({
     const catId = selectedSubcat || selectedCat;
     if (!catId) return [];
     return inventoryItems
-      .filter((i) => categoryMatches(catId, i.catalogCategory ?? i.category))
+      .filter((i) =>
+        categoryMatches(catId, i.catalogCategory ?? i.category, categoryTree),
+      )
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [inventoryItems, selectedCat, selectedSubcat]);
+  }, [inventoryItems, selectedCat, selectedSubcat, categoryTree]);
 
   function reset() {
     setSelectedItem(null);
@@ -570,7 +576,10 @@ function AddItemRow({
                         <div className="flex items-baseline gap-2">
                           <span className="font-medium truncate">{item.name}</span>
                           <span className="text-slate-400 text-xs shrink-0">
-                            {getCategoryLabel(item.catalogCategory || item.category)}
+                            {getCategoryLabel(
+                              item.catalogCategory || item.category,
+                              categoryTree,
+                            )}
                           </span>
                         </div>
                         {subtitle && (
@@ -598,7 +607,7 @@ function AddItemRow({
                 className={`${inputCls} flex-1`}
               >
                 <option value="">Category...</option>
-                {CATALOG_TREE.map((n) => (
+                {categoryTree.map((n) => (
                   <option key={n.id} value={n.id}>{n.label}</option>
                 ))}
               </select>

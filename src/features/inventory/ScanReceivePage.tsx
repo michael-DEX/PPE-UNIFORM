@@ -637,7 +637,10 @@ export default function ScanReceivePage() {
             )}
           </div>
           <div className="flex gap-3">
-            <Button variant="secondary" onClick={() => navigate("/inventory")}>
+            <Button
+              variant="secondary"
+              onClick={() => navigate("/logistics/inventory")}
+            >
               Back to Inventory
             </Button>
             <Button onClick={handleReset}>

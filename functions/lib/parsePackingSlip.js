@@ -4,7 +4,12 @@ exports.parsePackingSlip = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const params_1 = require("firebase-functions/params");
 const genai_1 = require("@google/genai");
+const app_1 = require("firebase-admin/app");
+const firestore_1 = require("firebase-admin/firestore");
 const geminiApiKey = (0, params_1.defineSecret)("GEMINI_API_KEY");
+// Admin SDK for server-side authz checks.
+(0, app_1.initializeApp)();
+const adminDb = (0, firestore_1.getFirestore)();
 // Reject payloads over ~7 MiB of base64 (≈5 MiB image). Gemini refuses larger
 // inline images anyway and this stops us burning quota on garbage.
 const MAX_BASE64_LEN = 7 * 1024 * 1024;
@@ -106,6 +111,17 @@ const KNOWN_ITEMS = [
     "Sleeping Bag Girdle",
     "Pillow",
 ];
+async function assertActiveLogisticsUser(uid) {
+    const snap = await adminDb.doc(`users/${uid}`).get();
+    if (!snap.exists) {
+        throw new https_1.HttpsError("permission-denied", "Not a logistics user");
+    }
+    const data = snap.data() ?? {};
+    const isActive = data.isActive === true || data.status === "active";
+    if (!isActive) {
+        throw new https_1.HttpsError("permission-denied", "Inactive logistics user");
+    }
+}
 exports.parsePackingSlip = (0, https_1.onCall)({
     secrets: [geminiApiKey],
     maxInstances: 10,
@@ -116,6 +132,7 @@ exports.parsePackingSlip = (0, https_1.onCall)({
     if (!request.auth) {
         throw new https_1.HttpsError("unauthenticated", "Must be authenticated");
     }
+    await assertActiveLogisticsUser(request.auth.uid);
     const { imageBase64, mimeType: mime } = validateParseInput(request.data);
     const ai = new genai_1.GoogleGenAI({ apiKey: geminiApiKey.value() });
     const prompt = `You are reading a packing slip, shipping manifest, or delivery receipt for CA-TF2 / USA-02 USAR team equipment.

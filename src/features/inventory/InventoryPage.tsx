@@ -4,6 +4,7 @@ import { ShoppingCart, Package, Plus } from "lucide-react";
 import { useInventory } from "../../hooks/useInventory";
 import { useDraftSave } from "../../hooks/useDraftSave";
 import { useAuthContext } from "../../app/AuthProvider";
+import { useCatalogCategories } from "../../hooks/useCatalogCategories";
 import { addToCurrentDraftOrderList } from "../../lib/orderListAdd";
 import { categoryMatches, getCategoryLabel } from "../../constants/catalogCategories";
 import InventoryList from "./InventoryList";
@@ -19,6 +20,7 @@ import type { Item, CartItem } from "../../types";
 export default function InventoryPage() {
   const { items, loading } = useInventory();
   const { isManager, logisticsUser } = useAuthContext();
+  const { tree: categoryTree } = useCatalogCategories();
   const toast = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeCategory = searchParams.get("cat") ?? "all";
@@ -104,7 +106,11 @@ export default function InventoryPage() {
     // Category filter
     if (activeCategory !== "all") {
       result = result.filter((i) =>
-        categoryMatches(activeCategory, i.catalogCategory ?? i.category)
+        categoryMatches(
+          activeCategory,
+          i.catalogCategory ?? i.category,
+          categoryTree,
+        )
       );
     }
 
@@ -120,7 +126,7 @@ export default function InventoryPage() {
     }
 
     return result;
-  }, [items, activeCategory, search]);
+  }, [items, activeCategory, search, categoryTree]);
 
   // Accordion "Receive stock" → open ItemDetailModal with the Adjust panel
   // pre-picked to "received". The modal owns its own delete flow via the
@@ -225,7 +231,10 @@ export default function InventoryPage() {
   }, [clearCartDraft]);
 
   // Breadcrumb label
-  const categoryLabel = activeCategory === "all" ? "All Items" : getCategoryLabel(activeCategory);
+  const categoryLabel =
+    activeCategory === "all"
+      ? "All Items"
+      : getCategoryLabel(activeCategory, categoryTree);
 
   if (loading) {
     return (

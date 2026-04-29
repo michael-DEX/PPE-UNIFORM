@@ -11,7 +11,8 @@ import { doc, serverTimestamp, getDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { commitItemCreate } from "../../lib/itemCreateCommit";
 import { useAuthContext } from "../../app/AuthProvider";
-import { CATALOG_TREE } from "../../constants/catalogCategories";
+import { useCatalogCategories } from "../../hooks/useCatalogCategories";
+import CategoryInlineAddModal from "./CategoryInlineAddModal";
 import type { ItemCategory, PackingLocations } from "../../types";
 
 const ITEM_CATEGORIES: ItemCategory[] = [
@@ -83,10 +84,13 @@ interface Props {
 }
 
 export default function NewItemModal({ open, onClose, onCreated }: Props) {
-  const { logisticsUser } = useAuthContext();
+  const { logisticsUser, isManager } = useAuthContext();
+  const { tree: categoryTree } = useCatalogCategories();
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [addCatOpen, setAddCatOpen] = useState(false);
+  const [addSubcatOpen, setAddSubcatOpen] = useState(false);
 
   function update<K extends keyof FormState>(field: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [field]: value }));
@@ -198,7 +202,7 @@ export default function NewItemModal({ open, onClose, onCreated }: Props) {
 
   if (!open) return null;
 
-  const parentNode = CATALOG_TREE.find((n) => n.id === form.catalogParent);
+  const parentNode = categoryTree.find((n) => n.id === form.catalogParent);
   const childOptions = parentNode?.children ?? [];
 
   return (
@@ -271,29 +275,49 @@ export default function NewItemModal({ open, onClose, onCreated }: Props) {
               <select
                 value={form.catalogParent}
                 onChange={(e) => {
-                  update("catalogParent", e.target.value);
+                  const val = e.target.value;
+                  if (val === "__add_category__") {
+                    setAddCatOpen(true);
+                    return;
+                  }
+                  update("catalogParent", val);
                   update("catalogChild", "");
                 }}
                 className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy-500"
               >
                 <option value="">—</option>
-                {CATALOG_TREE.map((n) => (
+                {categoryTree.map((n) => (
                   <option key={n.id} value={n.id}>{n.label}</option>
                 ))}
+                {isManager && (
+                  <option value="__add_category__">+ Add new category…</option>
+                )}
               </select>
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Subcategory</label>
               <select
                 value={form.catalogChild}
-                onChange={(e) => update("catalogChild", e.target.value)}
-                disabled={childOptions.length === 0}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === "__add_subcategory__") {
+                    setAddSubcatOpen(true);
+                    return;
+                  }
+                  update("catalogChild", val);
+                }}
+                disabled={childOptions.length === 0 && !(isManager && form.catalogParent)}
                 className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy-500 disabled:bg-slate-50 disabled:text-slate-400"
               >
                 <option value="">—</option>
                 {childOptions.map((c) => (
                   <option key={c.id} value={c.id}>{c.label}</option>
                 ))}
+                {isManager && form.catalogParent && (
+                  <option value="__add_subcategory__">
+                    + Add new subcategory…
+                  </option>
+                )}
               </select>
             </div>
           </div>
@@ -471,6 +495,33 @@ export default function NewItemModal({ open, onClose, onCreated }: Props) {
           </button>
         </div>
       </div>
+
+      {logisticsUser && (
+        <>
+          <CategoryInlineAddModal
+            open={addCatOpen}
+            mode="category"
+            onClose={() => setAddCatOpen(false)}
+            baseTree={categoryTree}
+            actor={logisticsUser}
+            onCreated={(id) => {
+              update("catalogParent", id);
+              update("catalogChild", "");
+            }}
+          />
+          <CategoryInlineAddModal
+            open={addSubcatOpen}
+            mode="subcategory"
+            onClose={() => setAddSubcatOpen(false)}
+            baseTree={categoryTree}
+            actor={logisticsUser}
+            parentId={form.catalogParent || undefined}
+            onCreated={(id) => {
+              update("catalogChild", id);
+            }}
+          />
+        </>
+      )}
     </div>
   );
 }

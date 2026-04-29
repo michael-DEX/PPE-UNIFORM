@@ -23,7 +23,13 @@ service cloud.firestore {
     }
     match /items/{itemId} {
       allow read: if isLoggedIn();
-      allow write: if isLogistics();
+      // Staff can adjust stock levels (sizeMap qty) but should not be able
+      // to create/delete or edit item metadata. Managers/admins can.
+      allow create: if isManager();
+      allow delete: if isManager();
+      allow update: if isManager()
+                    || (isLogistics()
+                        && request.resource.data.diff(resource.data).changedKeys().hasOnly(["sizeMap", "updatedAt"]));
     }
     match /personnel/{personnelId} {
       allow read: if isLogistics() || request.auth.uid == resource.data.authUid;
@@ -64,7 +70,10 @@ service cloud.firestore {
       // session start. Only admins can edit — the Settings UI enforces
       // this client-side, and this rule guarantees it server-side.
       allow read: if isLogistics();
-      allow write: if isAdmin();
+      // Managers can edit catalog categories (shared taxonomy). Other config
+      // docs remain admin-only.
+      allow write: if (docId == "catalog_categories" && isManager())
+                   || isAdmin();
     }
     match /users/{userId} {
       allow read: if isLogistics();

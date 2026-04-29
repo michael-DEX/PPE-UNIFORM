@@ -23,7 +23,8 @@ import { backorderedRef } from "../../lib/firestore";
 import { useAuthContext } from "../../app/AuthProvider";
 import { usePersonnel } from "../../hooks/usePersonnel";
 import { getTotalStock, getStockStatus, isLowStock, isOutOfStock } from "../../hooks/useInventory";
-import { getCategoryLabel, CATALOG_TREE } from "../../constants/catalogCategories";
+import { getCategoryLabel } from "../../constants/catalogCategories";
+import { useCatalogCategories } from "../../hooks/useCatalogCategories";
 import { commitIssue } from "../../lib/issueCommit";
 import { commitStockAdjust } from "../../lib/stockCommit";
 import { commitItemEdit } from "../../lib/itemEditCommit";
@@ -36,6 +37,7 @@ import { useToast } from "../../components/ui/Toast";
 import PackingSection from "./itemDetail/PackingSection";
 import SettingsSection from "./itemDetail/SettingsSection";
 import ActivitySection from "./itemDetail/ActivitySection";
+import CategoryInlineAddModal from "./CategoryInlineAddModal";
 import type { Item, Personnel, BackorderItem, ItemCategory } from "../../types";
 
 interface Props {
@@ -114,6 +116,7 @@ function Section({
 // --- Main Component ---
 export default function ItemDetailModal({ item, open, onClose, startInEdit = false, startInAdjust = false, startInAdjustReason }: Props) {
   const { isManager, logisticsUser } = useAuthContext();
+  const { tree: categoryTree } = useCatalogCategories();
 
   // Reset all local state when item changes
   const [key, setKey] = useState(0);
@@ -124,13 +127,12 @@ export default function ItemDetailModal({ item, open, onClose, startInEdit = fal
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (item) {
-      setKey((k) => k + 1);
-      setEditing(startInEdit && isManager);
-      setShowDeleteConfirm(false);
-      setDeleteConfirmText("");
-      setDeleteError(null);
-    }
+    if (!item) return;
+    setKey((k) => k + 1);
+    setEditing(startInEdit && isManager);
+    setShowDeleteConfirm(false);
+    setDeleteConfirmText("");
+    setDeleteError(null);
   }, [item?.id, startInEdit, isManager]);
 
   async function confirmDelete() {
@@ -195,7 +197,7 @@ export default function ItemDetailModal({ item, open, onClose, startInEdit = fal
               )}
               <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                 <span className="text-xs text-gray-500">
-                  {getCategoryLabel(item.catalogCategory || item.category)}
+                  {getCategoryLabel(item.catalogCategory || item.category, categoryTree)}
                 </span>
                 <span className="text-gray-300">·</span>
                 <span
@@ -284,7 +286,7 @@ export default function ItemDetailModal({ item, open, onClose, startInEdit = fal
 
               {/* 4. Activity */}
               <Section title="Activity" icon={Clock} defaultOpen={false}>
-                <ActivitySection item={item} />
+                <ActivitySection key={item.id} item={item} />
               </Section>
 
               {/* 5. Settings */}
@@ -1215,12 +1217,12 @@ interface EditFormState {
   sizes: SizeRow[];
 }
 
-function initialFormState(item: Item): EditFormState {
+function initialFormState(item: Item, tree: Array<{ id: string; children?: Array<{ id: string }> }>): EditFormState {
   const cc = item.catalogCategory ?? "";
   // Determine parent vs child based on CATALOG_TREE
   let catalogParent = cc;
   let catalogChild = "";
-  for (const node of CATALOG_TREE) {
+  for (const node of tree) {
     if (node.children?.some((c) => c.id === cc)) {
       catalogParent = node.id;
       catalogChild = cc;
@@ -1232,7 +1234,7 @@ function initialFormState(item: Item): EditFormState {
     manufacturer: item.manufacturer ?? "",
     model: item.model ?? "",
     description: item.description ?? "",
-    category: item.category,
+    category: item.category as ItemCategory,
     catalogParent,
     catalogChild,
     unitOfIssue: item.unitOfIssue || "each",
@@ -1257,15 +1259,20 @@ function initialFormState(item: Item): EditFormState {
 }
 
 function EditItemForm({ item, onDone }: { item: Item; onDone: () => void }) {
-  const { logisticsUser } = useAuthContext();
-  const [form, setForm] = useState<EditFormState>(() => initialFormState(item));
+  const { logisticsUser, isManager } = useAuthContext();
+  const { tree: categoryTree } = useCatalogCategories();
+  const [form, setForm] = useState<EditFormState>(() =>
+    initialFormState(item, categoryTree),
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [addCatOpen, setAddCatOpen] = useState(false);
+  const [addSubcatOpen, setAddSubcatOpen] = useState(false);
 
   // Reset form if the item prop changes (e.g. after Firestore snapshot refresh)
   useEffect(() => {
-    setForm(initialFormState(item));
-  }, [item]);
+    setForm(initialFormState(item, categoryTree));
+  }, [item, categoryTree]);
 
   function update<K extends keyof EditFormState>(field: K, value: EditFormState[K]) {
     setForm((f) => ({ ...f, [field]: value }));
@@ -1381,7 +1388,7 @@ function EditItemForm({ item, onDone }: { item: Item; onDone: () => void }) {
     }
   }
 
-  const parentNode = CATALOG_TREE.find((n) => n.id === form.catalogParent);
+  const parentNode = categoryTree.find((n) => n.id === form.catalogParent);
   const childOptions = parentNode?.children ?? [];
 
   return (
@@ -1440,29 +1447,49 @@ function EditItemForm({ item, onDone }: { item: Item; onDone: () => void }) {
           <select
             value={form.catalogParent}
             onChange={(e) => {
-              update("catalogParent", e.target.value);
+              const val = e.target.value;
+              if (val === "__add_category__") {
+                setAddCatOpen(true);
+                return;
+              }
+              update("catalogParent", val);
               update("catalogChild", "");
             }}
             className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy-500"
           >
             <option value="">—</option>
-            {CATALOG_TREE.map((n) => (
+            {categoryTree.map((n) => (
               <option key={n.id} value={n.id}>{n.label}</option>
             ))}
+            {isManager && (
+              <option value="__add_category__">+ Add new category…</option>
+            )}
           </select>
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Subcategory</label>
           <select
             value={form.catalogChild}
-            onChange={(e) => update("catalogChild", e.target.value)}
-            disabled={childOptions.length === 0}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val === "__add_subcategory__") {
+                setAddSubcatOpen(true);
+                return;
+              }
+              update("catalogChild", val);
+            }}
+            disabled={childOptions.length === 0 && !(isManager && form.catalogParent)}
             className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy-500 disabled:bg-slate-50 disabled:text-slate-400"
           >
             <option value="">—</option>
             {childOptions.map((c) => (
               <option key={c.id} value={c.id}>{c.label}</option>
             ))}
+            {isManager && form.catalogParent && (
+              <option value="__add_subcategory__">
+                + Add new subcategory…
+              </option>
+            )}
           </select>
         </div>
       </div>
@@ -1647,6 +1674,33 @@ function EditItemForm({ item, onDone }: { item: Item; onDone: () => void }) {
           Cancel
         </button>
       </div>
+
+      {logisticsUser && (
+        <>
+          <CategoryInlineAddModal
+            open={addCatOpen}
+            mode="category"
+            onClose={() => setAddCatOpen(false)}
+            baseTree={categoryTree}
+            actor={logisticsUser}
+            onCreated={(id) => {
+              update("catalogParent", id);
+              update("catalogChild", "");
+            }}
+          />
+          <CategoryInlineAddModal
+            open={addSubcatOpen}
+            mode="subcategory"
+            onClose={() => setAddSubcatOpen(false)}
+            baseTree={categoryTree}
+            actor={logisticsUser}
+            parentId={form.catalogParent || undefined}
+            onCreated={(id) => {
+              update("catalogChild", id);
+            }}
+          />
+        </>
+      )}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { sendPasswordResetEmail } from "firebase/auth";
 import { auth } from "../../lib/firebase";
@@ -17,14 +17,12 @@ export default function LoginPage() {
   const [resetInfo, setResetInfo] = useState<string | null>(null);
 
   // Redirect if already logged in
-  if (user && isLogistics) {
-    navigate("/logistics", { replace: true });
-    return null;
-  }
-  if (user && !isLogistics) {
-    navigate("/store", { replace: true });
-    return null;
-  }
+  useEffect(() => {
+    if (!user) return;
+    navigate(user && isLogistics ? "/logistics" : "/store", { replace: true });
+  }, [user, isLogistics, navigate]);
+
+  if (user) return null;
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -33,8 +31,11 @@ export default function LoginPage() {
     try {
       await signIn(email, password);
       navigate("/logistics");
-    } catch (err: any) {
-      const code = err?.code ?? "";
+    } catch (err: unknown) {
+      const code =
+        err && typeof err === "object" && "code" in err
+          ? String((err as { code: unknown }).code)
+          : "";
       if (code === "auth/user-not-found" || code === "auth/wrong-password" || code === "auth/invalid-credential") {
         setError("Invalid email or password.");
       } else if (code === "auth/too-many-requests") {
@@ -61,8 +62,11 @@ export default function LoginPage() {
       // Always show the same message regardless of whether the email exists
       // (Firebase Auth's email enumeration protection doesn't reveal existence).
       setResetInfo("If an account exists for that email, a reset link has been sent.");
-    } catch (err: any) {
-      const code = err?.code ?? "";
+    } catch (err: unknown) {
+      const code =
+        err && typeof err === "object" && "code" in err
+          ? String((err as { code: unknown }).code)
+          : "";
       if (code === "auth/invalid-email") {
         setError("That email address isn't valid.");
       } else if (code === "auth/too-many-requests") {

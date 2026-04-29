@@ -71,7 +71,10 @@ export function getAllCategoryIds(): string[] {
 }
 
 /** Get label for a category ID */
-export function getCategoryLabel(id: string): string {
+export function getCategoryLabel(
+  id: string,
+  tree: CategoryNode[] = CATALOG_TREE,
+): string {
   function find(nodes: CategoryNode[]): string | null {
     for (const n of nodes) {
       if (n.id === id) return n.label;
@@ -82,15 +85,19 @@ export function getCategoryLabel(id: string): string {
     }
     return null;
   }
-  return find(CATALOG_TREE) ?? id;
+  return find(tree) ?? id;
 }
 
 /** Check if a category ID matches a node or any of its children */
-export function categoryMatches(nodeId: string, itemCategoryId: string): boolean {
+export function categoryMatches(
+  nodeId: string,
+  itemCategoryId: string,
+  tree: CategoryNode[] = CATALOG_TREE,
+): boolean {
   if (nodeId === "all") return true;
   if (nodeId === itemCategoryId) return true;
   // Check if nodeId is a parent (e.g., "clothing" matches "clothing-bdus")
-  const node = findNode(CATALOG_TREE, nodeId);
+  const node = findNode(tree, nodeId);
   if (node?.children) {
     return node.children.some((c) => c.id === itemCategoryId);
   }
