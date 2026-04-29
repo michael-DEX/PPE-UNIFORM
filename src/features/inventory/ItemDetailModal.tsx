@@ -22,8 +22,8 @@ import { onSnapshot, query, where, serverTimestamp } from "firebase/firestore";
 import { backorderedRef } from "../../lib/firestore";
 import { useAuthContext } from "../../app/AuthProvider";
 import { usePersonnel } from "../../hooks/usePersonnel";
-import { getTotalStock, getStockStatus, isLowStock, isOutOfStock } from "../../hooks/useInventory";
-import { getCategoryLabel } from "../../constants/catalogCategories";
+import { useInventory, getTotalStock, getStockStatus, isLowStock, isOutOfStock } from "../../hooks/useInventory";
+import { CATALOG_TREE, getCategoryLabel } from "../../constants/catalogCategories";
 import { useCatalogCategories } from "../../hooks/useCatalogCategories";
 import { commitIssue } from "../../lib/issueCommit";
 import { commitStockAdjust } from "../../lib/stockCommit";
@@ -1204,7 +1204,10 @@ interface EditFormState {
   manufacturer: string;
   model: string;
   description: string;
-  category: ItemCategory;
+  // Widened from `ItemCategory` to `string` so the inline "+ Add new
+  // category…" UX can write user-typed values into form state without
+  // a cast. Mirrors the same widening in NewItemModal.tsx FormState.
+  category: string;
   catalogParent: string;
   catalogChild: string;
   unitOfIssue: string;
@@ -1261,6 +1264,7 @@ function initialFormState(item: Item, tree: Array<{ id: string; children?: Array
 function EditItemForm({ item, onDone }: { item: Item; onDone: () => void }) {
   const { logisticsUser, isManager } = useAuthContext();
   const { tree: categoryTree } = useCatalogCategories();
+  const { items: inventoryItems } = useInventory();
   const [form, setForm] = useState<EditFormState>(() =>
     initialFormState(item, categoryTree),
   );
@@ -1268,6 +1272,21 @@ function EditItemForm({ item, onDone }: { item: Item; onDone: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [addCatOpen, setAddCatOpen] = useState(false);
   const [addSubcatOpen, setAddSubcatOpen] = useState(false);
+  const [addLegacyCatOpen, setAddLegacyCatOpen] = useState(false);
+
+  // Legacy `category` field options: built-in `ITEM_CATEGORIES` enum +
+  // any user-created values that have already been used on at least one
+  // item + the current form value (so a just-typed value shows up in
+  // the dropdown immediately, before the item is saved). Mirrors the
+  // derivation in NewItemModal.
+  const legacyCategoryOptions = useMemo(() => {
+    const set = new Set<string>(ITEM_CATEGORIES);
+    for (const it of inventoryItems) {
+      if (it.category) set.add(it.category);
+    }
+    if (form.category) set.add(form.category);
+    return Array.from(set).sort();
+  }, [inventoryItems, form.category]);
 
   // Reset form if the item prop changes (e.g. after Firestore snapshot refresh)
   useEffect(() => {
@@ -1324,6 +1343,16 @@ function EditItemForm({ item, onDone }: { item: Item; onDone: () => void }) {
     // Validation
     if (!form.name.trim()) {
       setError("Name is required.");
+      return;
+    }
+    // User-created catalog parents (anything not in the hardcoded
+    // CATALOG_TREE) require a subcategory. See NewItemModal.handleCreate
+    // for the rationale.
+    const isBuiltInParent = CATALOG_TREE.some((n) => n.id === form.catalogParent);
+    if (form.catalogParent && !isBuiltInParent && !form.catalogChild) {
+      setError(
+        "New categories require a subcategory. Pick one from the list or create a new one.",
+      );
       return;
     }
     const trimmedKeys = form.sizes.map((s) => s.key.trim().toUpperCase());
@@ -1499,12 +1528,22 @@ function EditItemForm({ item, onDone }: { item: Item; onDone: () => void }) {
         <label className="block text-xs font-medium text-gray-600 mb-1">Legacy Category</label>
         <select
           value={form.category}
-          onChange={(e) => update("category", e.target.value as ItemCategory)}
+          onChange={(e) => {
+            const val = e.target.value;
+            if (val === "__add_legacy_category__") {
+              setAddLegacyCatOpen(true);
+              return;
+            }
+            update("category", val);
+          }}
           className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy-500"
         >
-          {ITEM_CATEGORIES.map((c) => (
+          {legacyCategoryOptions.map((c) => (
             <option key={c} value={c}>{c}</option>
           ))}
+          {isManager && (
+            <option value="__add_legacy_category__">+ Add new category…</option>
+          )}
         </select>
       </div>
 
@@ -1697,6 +1736,22 @@ function EditItemForm({ item, onDone }: { item: Item; onDone: () => void }) {
             parentId={form.catalogParent || undefined}
             onCreated={(id) => {
               update("catalogChild", id);
+            }}
+          />
+          {/* Legacy `category` field is per-item (string on Item), not a
+              shared tree — `persist={false}` skips the Firestore write
+              and just hands the new label back to the form. The synthetic
+              `baseTree` carries the current legacy options for collision
+              detection inside the modal. */}
+          <CategoryInlineAddModal
+            open={addLegacyCatOpen}
+            mode="category"
+            persist={false}
+            onClose={() => setAddLegacyCatOpen(false)}
+            baseTree={legacyCategoryOptions.map((c) => ({ id: c, label: c }))}
+            actor={logisticsUser}
+            onCreated={(id) => {
+              update("category", id);
             }}
           />
         </>

@@ -37,6 +37,7 @@ export default function CategoryInlineAddModal({
   actor,
   parentId,
   onCreated,
+  persist = true,
 }: {
   open: boolean;
   mode: Mode;
@@ -45,6 +46,21 @@ export default function CategoryInlineAddModal({
   actor: LogisticsUser;
   parentId?: string;
   onCreated: (id: string) => void;
+  /**
+   * When `true` (default), commits the new category to the shared
+   * `/app_config/catalog_categories` Firestore tree + writes a
+   * `catalog_categories_edit` audit event. Used by the catalog
+   * category/subcategory dropdowns in NewItemModal/EditItemForm.
+   *
+   * When `false`, skips the Firestore write entirely — the new value
+   * is just handed back to the caller via `onCreated()` for use as a
+   * per-item string (e.g., the legacy `category` field). Future forms
+   * pick it up by deriving distinct values from the items collection.
+   * Collision detection still runs against `baseTree` so the caller
+   * can pass a synthetic tree of currently-known values to prevent
+   * duplicates.
+   */
+  persist?: boolean;
 }) {
   const [label, setLabel] = useState("");
   const [saving, setSaving] = useState(false);
@@ -91,6 +107,15 @@ export default function CategoryInlineAddModal({
 
     setSaving(true);
     try {
+      // Non-persisted mode: hand the new value back to the caller and
+      // exit. Used for the legacy `category` field, which lives on each
+      // item rather than in a shared tree.
+      if (!persist) {
+        onCreated(computedId);
+        resetAndClose();
+        return;
+      }
+
       let nextTree: CategoryNode[];
       if (mode === "category") {
         nextTree = [...baseTree, { id: computedId, label: label.trim() }];
@@ -140,7 +165,11 @@ export default function CategoryInlineAddModal({
       open={open}
       onClose={() => !saving && resetAndClose()}
       title={mode === "category" ? "Add category" : "Add subcategory"}
-      subtitle="Creates a shared category for everyone (IDs are stable)."
+      subtitle={
+        persist
+          ? "Creates a shared category for everyone (IDs are stable)."
+          : "Saved on this item only. Future items will see this value once it's been used."
+      }
     >
       <div className="space-y-3">
         {mode === "subcategory" && parentId && (
