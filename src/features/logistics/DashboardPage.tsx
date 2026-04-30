@@ -1,6 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Package, Users, ShoppingCart, UserPlus, AlertTriangle } from "lucide-react";
+import {
+  Package,
+  Users,
+  ShoppingCart,
+  PackagePlus,
+  AlertTriangle,
+  ChevronRight,
+} from "lucide-react";
 import { useInventory, isLowStock, isOutOfStock } from "../../hooks/useInventory";
 import { usePersonnel } from "../../hooks/usePersonnel";
 import { useAuthContext } from "../../app/AuthProvider";
@@ -44,13 +51,6 @@ export default function DashboardPage() {
         <p className="text-sm text-slate-500 mt-1">CA-TF2 / USA-02 PPE Logistics</p>
       </div>
 
-      {/* Stats strip */}
-      <div className="bg-white rounded-xl border border-slate-200 grid grid-cols-3 px-2 py-3">
-        <StatCell label="Items" value={teamItemCount} />
-        <StatCell label="Members" value={activeMembers.length} />
-        <StatCell label="Alerts" value={alertCount} alert={alertsActive} last />
-      </div>
-
       {/* Quick actions strip */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden grid grid-cols-4">
         <QuickAction
@@ -69,11 +69,18 @@ export default function DashboardPage() {
           onClick={() => navigate("/logistics/personnel")}
         />
         <QuickAction
-          icon={<UserPlus size={20} />}
-          label="Onboard"
-          onClick={() => navigate("/logistics/onboarding")}
+          icon={<PackagePlus size={20} />}
+          label="Receive"
+          onClick={() => navigate("/logistics/inventory/scan")}
           last
         />
+      </div>
+
+      {/* Stats strip */}
+      <div className="bg-white rounded-xl border border-slate-200 grid grid-cols-3 px-2 py-3">
+        <StatCell label="Items" value={teamItemCount} />
+        <StatCell label="Members" value={activeMembers.length} />
+        <StatCell label="Alerts" value={alertCount} alert={alertsActive} last />
       </div>
 
       {/* Stock Alerts — clicking a row opens the full ItemDetailModal
@@ -111,6 +118,11 @@ export default function DashboardPage() {
                   >
                     {out ? "Out of Stock" : "Low Stock"}
                   </Badge>
+                  <ChevronRight
+                    size={16}
+                    className="shrink-0 text-slate-400"
+                    aria-hidden="true"
+                  />
                 </button>
               );
             })}

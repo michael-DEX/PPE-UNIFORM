@@ -90,6 +90,19 @@ export default function OrderListsPage() {
     return unsub;
   }, []);
 
+  // Auto-select the first list whenever there's no selection but lists
+  // exist. Covers the initial-load case (skip the empty right panel)
+  // and the post-delete case (jump to the next remaining list rather
+  // than dropping back to "select one"). User-driven selections aren't
+  // affected because the `!selectedId` guard short-circuits whenever
+  // anything is already picked.
+  useEffect(() => {
+    if (lists.length > 0 && !selectedId) {
+      setSelectedId(lists[0].id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lists]);
+
   const selectedList = useMemo(
     () => lists.find((l) => l.id === selectedId) ?? null,
     [lists, selectedId]

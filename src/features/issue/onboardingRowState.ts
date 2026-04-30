@@ -1,34 +1,5 @@
 import type { CartItem, Item } from "../../types";
 
-// ── Category ordering ────────────────────────────────────────────────────
-//
-// Copied verbatim from the legacy OnboardingPage GearTable so the new
-// card list orders categories identically. Items whose category isn't
-// in this array sort to the end in insertion order.
-export const CATEGORY_ORDER: readonly string[] = [
-  "packs-bags",
-  "patches",
-  "footwear",
-  "clothing-bdus",
-  "clothing-shirts",
-  "clothing-outerwear",
-  "clothing-headwear",
-  "clothing-personal",
-  "ppe-equipment",
-  "head-protection",
-  "sleep-system",
-  "personal-items",
-  // Fallbacks for items using older category IDs.
-  "bags",
-  "boots",
-  "bdus",
-  "clothing",
-  "ppe",
-  "helmet",
-  "sleeping",
-  "personal",
-];
-
 // ── Row state ────────────────────────────────────────────────────────────
 
 export type RowState = "pending" | "ready" | "previouslyIssued" | "outOfStock";
@@ -83,10 +54,19 @@ export function getRowState(
   return "pending";
 }
 
-// ── Category grouping ────────────────────────────────────────────────────
+// ── Section grouping ─────────────────────────────────────────────────────
 
-export interface CategoryGroup {
-  category: string;
+/** Synthetic section id used for items that don't belong to any
+ *  admin-defined section. Reserved double-underscore prefix avoids
+ *  collisions with the `sec_<timestamp>_<rand4>` ids the template
+ *  editor generates for real sections. */
+export const UNASSIGNED_SECTION_ID = "__unassigned__";
+
+export interface SectionGroup {
+  /** Stable group key — the section's own id, or `UNASSIGNED_SECTION_ID`. */
+  sectionId: string;
+  /** Display label shown in the filter pill and the group header. */
+  sectionLabel: string;
   rows: CartItem[];
   readyCount: number;
   totalCount: number;
@@ -94,51 +74,56 @@ export interface CategoryGroup {
 }
 
 /**
- * Partition cart rows into category buckets and compute per-bucket counts.
- * Category lookup falls through `fsItem.catalogCategory → fsItem.category →
- * "other"`, matching the legacy GearTable behavior. Ordering respects
- * CATEGORY_ORDER; unknown categories are appended in insertion order.
+ * Partition cart rows into template-section buckets and compute per-bucket
+ * counts. Rows without a `sectionId` (the `unassigned` bucket on the
+ * template doc, or any item from a pre-Phase-2 doc) collect under a
+ * synthetic "Unassigned" group that always sorts to the end.
  *
- * Takes `alreadyIssued` because both `readyCount` and `allPreviouslyIssued`
- * depend on per-row state, which depends on prior transactions.
+ * Ordering: assigned sections appear in the order they're first
+ * encountered in `rows`, which mirrors the order the template editor
+ * wrote them — the cart is hydrated from `[...sections[*].items,
+ * ...unassigned]`, so first-occurrence order = admin-defined section
+ * order. Within each section, rows are sorted alphabetically by
+ * `itemName` so card order stays deterministic across the size-pill
+ * remove+add cycle in the cart (otherwise re-added rows visually drop
+ * to the bottom of their bucket below the mobile fold).
+ *
+ * Takes `alreadyIssued` because both `readyCount` and
+ * `allPreviouslyIssued` depend on per-row state, which depends on prior
+ * transactions.
  */
-export function groupByCategory(
+export function groupBySection(
   rows: CartItem[],
   fsItems: Item[],
   alreadyIssued: Map<string, number>,
-): CategoryGroup[] {
+): SectionGroup[] {
   const byId = new Map<string, Item>();
   for (const it of fsItems) byId.set(it.id, it);
 
-  const byCat = new Map<string, CartItem[]>();
+  const buckets = new Map<string, { label: string; rows: CartItem[] }>();
   for (const row of rows) {
-    const fs = byId.get(row.itemId);
-    const cat = fs?.catalogCategory ?? fs?.category ?? "other";
-    const bucket = byCat.get(cat);
-    if (bucket) bucket.push(row);
-    else byCat.set(cat, [row]);
+    const sectionId = row.sectionId ?? UNASSIGNED_SECTION_ID;
+    const label =
+      sectionId === UNASSIGNED_SECTION_ID
+        ? "Unassigned"
+        : (row.sectionLabel ?? "Unassigned");
+    const existing = buckets.get(sectionId);
+    if (existing) existing.rows.push(row);
+    else buckets.set(sectionId, { label, rows: [row] });
   }
 
-  const ordered: Array<[string, CartItem[]]> = [];
-  for (const cat of CATEGORY_ORDER) {
-    const bucket = byCat.get(cat);
-    if (bucket) {
-      ordered.push([cat, bucket]);
-      byCat.delete(cat);
-    }
+  // Move the synthetic "Unassigned" bucket to the end (if present and not
+  // already last), preserving admin-defined section order otherwise.
+  const ordered: Array<[string, { label: string; rows: CartItem[] }]> = [];
+  let unassigned: [string, { label: string; rows: CartItem[] }] | null = null;
+  for (const entry of buckets) {
+    if (entry[0] === UNASSIGNED_SECTION_ID) unassigned = entry;
+    else ordered.push(entry);
   }
-  for (const entry of byCat) ordered.push(entry);
+  if (unassigned) ordered.push(unassigned);
 
-  return ordered.map(([category, bucketRows]) => {
-    // Alphabetical sort by itemName within each bucket. Makes card order
-    // deterministic — a row's visual position depends on its name, not on
-    // when it was appended to the cart. This fixes the "disappearing card"
-    // bug where a size-pill tap causes `handleSizeChange` to remove+add the
-    // row, which appends to the cart tail and lands at the bottom of its
-    // bucket (visually "vanishing" below the mobile fold). Sorting here
-    // is cheaper than changing cart-insert semantics in IssueCartContext,
-    // which is shared with other issue flows.
-    const sortedRows = [...bucketRows].sort((a, b) =>
+  return ordered.map(([sectionId, bucket]) => {
+    const sortedRows = [...bucket.rows].sort((a, b) =>
       a.itemName.localeCompare(b.itemName),
     );
     let readyCount = 0;
@@ -154,7 +139,8 @@ export function groupByCategory(
       if (state !== "previouslyIssued") allPrior = false;
     }
     return {
-      category,
+      sectionId,
+      sectionLabel: bucket.label,
       rows: sortedRows,
       readyCount,
       totalCount: sortedRows.length,
@@ -166,8 +152,12 @@ export function groupByCategory(
 // ── Filter state ─────────────────────────────────────────────────────────
 
 /**
- * "all" = show every category group.
- * Any other string = a category id that appeared in groupByCategory output;
- * the page filters groups to just that one.
+ * `"__all__"` = show every section group.
+ * Any other string = a `sectionId` from `groupBySection` output (a real
+ * section id, or `UNASSIGNED_SECTION_ID`); the page filters groups to
+ * just that one.
  */
-export type CategoryFilter = "all" | string;
+export type SectionFilter = "__all__" | string;
+
+/** Sentinel value matching `SectionFilter`'s "show all" branch. */
+export const ALL_SECTIONS_FILTER = "__all__";

@@ -4,16 +4,6 @@ import { db } from "../../lib/firebase";
 import { useAuthContext } from "../../app/AuthProvider";
 import Modal from "../../components/ui/Modal";
 import Button from "../../components/ui/Button";
-import type { TeamRole } from "../../types";
-
-const ROLES: { value: TeamRole; label: string }[] = [
-  { value: "rescue_specialist", label: "Rescue Specialist" },
-  { value: "search_specialist", label: "Search Specialist" },
-  { value: "medical_specialist", label: "Medical Specialist" },
-  { value: "logistics_specialist", label: "Logistics Specialist" },
-  { value: "task_force_leader", label: "Task Force Leader" },
-  { value: "k9_specialist", label: "K9 Specialist" },
-];
 
 interface Props {
   open: boolean;
@@ -26,10 +16,7 @@ export default function AddMemberModal({ open, onClose }: Props) {
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
-    rank: "",
-    role: "rescue_specialist" as TeamRole,
     email: "",
-    phone: "",
     shirt: "",
     pants: "",
     boots: "",
@@ -37,7 +24,7 @@ export default function AddMemberModal({ open, onClose }: Props) {
     gloves: "",
   });
 
-  function update(field: string, value: string) {
+  function update(field: keyof typeof form, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }));
   }
 
@@ -51,10 +38,7 @@ export default function AddMemberModal({ open, onClose }: Props) {
       await setDoc(ref, {
         firstName: form.firstName,
         lastName: form.lastName,
-        rank: form.rank || null,
-        role: form.role || null,
         email: form.email,
-        phone: form.phone || null,
         isActive: true,
         joinDate: serverTimestamp(),
         sizes: {
@@ -69,8 +53,7 @@ export default function AddMemberModal({ open, onClose }: Props) {
       });
 
       setForm({
-        firstName: "", lastName: "", rank: "",
-        role: "rescue_specialist", email: "", phone: "",
+        firstName: "", lastName: "", email: "",
         shirt: "", pants: "", boots: "", helmet: "", gloves: "",
       });
       onClose();
@@ -93,25 +76,9 @@ export default function AddMemberModal({ open, onClose }: Props) {
             <label className="block text-sm font-medium text-slate-700 mb-1">Last Name *</label>
             <input type="text" required value={form.lastName} onChange={(e) => update("lastName", e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy-500" />
           </div>
-          <div>
+          <div className="col-span-2">
             <label className="block text-sm font-medium text-slate-700 mb-1">Email *</label>
             <input type="email" required value={form.email} onChange={(e) => update("email", e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy-500" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
-            <input type="tel" value={form.phone} onChange={(e) => update("phone", e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy-500" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Rank</label>
-            <input type="text" value={form.rank} onChange={(e) => update("rank", e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy-500" placeholder="e.g., Firefighter, Engineer" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Role</label>
-            <select value={form.role} onChange={(e) => update("role", e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy-500">
-              {ROLES.map((r) => (
-                <option key={r.value} value={r.value}>{r.label}</option>
-              ))}
-            </select>
           </div>
         </div>
 

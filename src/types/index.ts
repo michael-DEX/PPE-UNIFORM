@@ -78,14 +78,6 @@ export interface Item {
 }
 
 // ── Personnel ──
-export type TeamRole =
-  | "rescue_specialist"
-  | "search_specialist"
-  | "medical_specialist"
-  | "logistics_specialist"
-  | "task_force_leader"
-  | "k9_specialist";
-
 export interface MemberSizes {
   shirt?: string;
   pants?: string;
@@ -98,10 +90,7 @@ export interface Personnel {
   id: string;
   firstName: string;
   lastName: string;
-  rank?: string;
-  role?: TeamRole;
   email: string;
-  phone?: string;
   isActive: boolean;
   joinDate: Timestamp;
   sizes: MemberSizes;
@@ -217,6 +206,43 @@ export interface OrderList {
   items: OrderListItem[];
 }
 
+// ── Onboarding Template ──
+
+/**
+ * Admin-defined section within the onboarding template. Sections are an
+ * organizational tool for the template editor; the issuance workflow does
+ * NOT consume section grouping (it continues to group by `item.category`).
+ *
+ * `id` is stable and never reused — generated client-side as
+ * `sec_<timestamp>_<rand4>` when the section is first created. `label` is
+ * mutable. `note` is optional plain text shown to the issuer during the
+ * onboarding workflow (Phase 3 — not yet wired). `items` is the ordered
+ * list of item IDs in this section.
+ */
+export interface OnboardingTemplateSection {
+  id: string;
+  label: string;
+  note?: string;
+  items: string[];
+}
+
+/**
+ * Shape of `app_config/onboarding_template`. The legacy `itemIds` flat
+ * array is still written redundantly during the rollback-compat window so
+ * older code rolling back continues to work; once that window closes a
+ * follow-up commit removes it. New code reads `sections` + `unassigned`
+ * when present and falls back to `itemIds` only when neither exists
+ * (pre-sections docs).
+ */
+export interface OnboardingTemplateDoc {
+  sections?: OnboardingTemplateSection[];
+  unassigned?: string[];
+  itemNotes?: Record<string, string>;
+  itemIds?: string[];
+  updatedAt?: Timestamp;
+  updatedBy?: string;
+}
+
 // ── Audit Log ──
 export type AuditEventType =
   | "issue"
@@ -311,14 +337,28 @@ export interface AuditEvent {
    * self-contained for forensic lookup. */
   snapshot?: Item;
   /**
-   * Before/after snapshots of the onboarding template `itemIds` array for
+   * Before/after snapshots of the onboarding template for
    * `onboarding_template_edit` events. One event per Save (not per
    * add/remove/reorder mutation), so a reviewer can diff before vs. after
    * to reconstruct exactly what changed. Absent on all non-template
-   * event types. */
+   * event types.
+   *
+   * `before` / `after` are flat itemId arrays preserved for backward
+   * compatibility with audit-log readers written before sections existed.
+   * The `sectionsBefore` / `sectionsAfter`, `unassignedBefore` /
+   * `unassignedAfter`, and `itemNotesBefore` / `itemNotesAfter` fields
+   * carry the new structured payload. All "After" fields exist iff the
+   * save wrote sections — the seed helper still writes only the legacy
+   * `before` / `after` flat arrays. */
   templateChange?: {
     before: string[];
     after: string[];
+    sectionsBefore?: OnboardingTemplateSection[];
+    sectionsAfter?: OnboardingTemplateSection[];
+    unassignedBefore?: string[];
+    unassignedAfter?: string[];
+    itemNotesBefore?: Record<string, string>;
+    itemNotesAfter?: Record<string, string>;
   };
 }
 
@@ -341,10 +381,7 @@ export interface OnboardingDraft {
   form: {
     firstName: string;
     lastName: string;
-    rank: string;
-    role: string;
     email: string;
-    phone: string;
     shirt: string;
     pants: string;
     boots: string;
@@ -370,4 +407,29 @@ export interface CartItem {
   qtyBefore: number;
   needsSize?: boolean;      // hint: this item requires a size entry
   suggestedQty?: number;    // hint: recommended qty from gear template
+  /**
+   * Per-item note from the onboarding template's `itemNotes` map. Plain
+   * text, surfaced read-only to the issuer in the onboarding flow.
+   * Absent / empty string both mean "no note" — the UI treats them the
+   * same and renders nothing. */
+  note?: string;
+  /**
+   * Note from the template section this item belongs to (if any).
+   * Hydrated by `loadTemplate` from `sections[*].note`; items in the
+   * unassigned bucket get no `sectionNote`. The onboarding page renders
+   * the section's note as a callout above its group header — items in
+   * the same group share the same value by construction. */
+  sectionNote?: string;
+  /**
+   * Stable section id this item belongs to, mirrored from the template
+   * doc's `sections[*].id`. Drives section grouping in the issuance
+   * flow. Items in the unassigned bucket (or pre-Phase-2 docs with no
+   * sections) leave this absent — those items render under a synthetic
+   * "Unassigned" group. */
+  sectionId?: string;
+  /**
+   * Display label of the section this item belongs to, mirrored from
+   * `sections[*].label`. Used as the group header in the issuance flow.
+   * Absent when `sectionId` is absent. */
+  sectionLabel?: string;
 }

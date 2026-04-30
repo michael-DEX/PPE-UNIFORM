@@ -413,6 +413,11 @@ function ExpandedPanel({
         const showReceive = !!canReceive && item.isIssuedByTeam;
         const outlinedClasses =
           "inline-flex items-center justify-center gap-1.5 px-3 py-3 min-h-[44px] rounded-lg text-sm font-semibold text-navy-700 bg-white border border-navy-300 hover:bg-navy-50 transition-colors";
+        // "View full details" is the tertiary action — demoted to a ghost
+        // button so it doesn't visually compete with the operational
+        // outlined pair (Add to order list / Receive stock).
+        const ghostClasses =
+          "inline-flex items-center justify-center gap-1.5 px-3 py-3 min-h-[44px] rounded-lg text-sm font-medium text-slate-500 bg-transparent border border-transparent hover:text-slate-700 transition-colors";
         return (
           <div className="grid grid-cols-2 gap-2">
             <button
@@ -445,7 +450,7 @@ function ExpandedPanel({
             <button
               type="button"
               onClick={() => onViewDetails(item)}
-              className={`${outlinedClasses} ${showReceive ? "" : "col-span-2"}`}
+              className={`${ghostClasses} ${showReceive ? "" : "col-span-2"}`}
             >
               View full details
             </button>

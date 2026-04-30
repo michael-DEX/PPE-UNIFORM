@@ -87,7 +87,13 @@ export function IssueCartProvider({ children }: { children: ReactNode }) {
       //     Settings page (phase 2B). Both paths produce identical
       //     CartItem shapes so the UI doesn't know which ran.
 
-      const buildFromFirestoreIds = (itemIds: string[]): CartItem[] => {
+      const buildFromFirestoreIds = (
+        itemIds: string[],
+        itemNotes: Record<string, string>,
+        sectionNoteByItemId: Record<string, string>,
+        sectionIdByItemId: Record<string, string>,
+        sectionLabelByItemId: Record<string, string>,
+      ): CartItem[] => {
         const seeded: CartItem[] = [];
         for (const itemId of itemIds) {
           const fsItem = firestoreItems.find((i) => i.id === itemId);
@@ -103,7 +109,11 @@ export function IssueCartProvider({ children }: { children: ReactNode }) {
           // defaults (no-size, qty=1). Cleanup after the Settings UI
           // stabilizes will remove ITEMS_MASTER dependency entirely.
           const masterEntry = ITEMS_MASTER.find((m) => m.name === fsItem.name);
-          seeded.push({
+          const note = (itemNotes[fsItem.id] ?? "").trim();
+          const sectionNote = sectionNoteByItemId[fsItem.id];
+          const sectionId = sectionIdByItemId[fsItem.id];
+          const sectionLabel = sectionLabelByItemId[fsItem.id];
+          const ci: CartItem = {
             itemId: fsItem.id,
             itemName: fsItem.name,
             size: null,
@@ -114,7 +124,12 @@ export function IssueCartProvider({ children }: { children: ReactNode }) {
               masterEntry?.needsSize ?? fsItem.needsSize ?? false,
             suggestedQty:
               masterEntry?.qtyRequired ?? fsItem.qtyRequired ?? 1,
-          });
+          };
+          if (note) ci.note = note;
+          if (sectionNote) ci.sectionNote = sectionNote;
+          if (sectionId) ci.sectionId = sectionId;
+          if (sectionLabel) ci.sectionLabel = sectionLabel;
+          seeded.push(ci);
         }
         return seeded;
       };
@@ -156,8 +171,56 @@ export function IssueCartProvider({ children }: { children: ReactNode }) {
             data && Array.isArray(data.itemIds)
               ? (data.itemIds as string[])
               : null;
+
+          // Notes lookups. Both default to empty when the doc lacks the
+          // field (pre-Phase-2 docs, or rolled-back state). Empty
+          // lookups → CartItems get no `note` / `sectionNote` →
+          // OnboardingPage / OnboardingItemCard render nothing extra.
+          const itemNotes: Record<string, string> =
+            data &&
+            data.itemNotes &&
+            typeof data.itemNotes === "object" &&
+            !Array.isArray(data.itemNotes)
+              ? (data.itemNotes as Record<string, string>)
+              : {};
+
+          const sectionNoteByItemId: Record<string, string> = {};
+          const sectionIdByItemId: Record<string, string> = {};
+          const sectionLabelByItemId: Record<string, string> = {};
+          const sectionsRaw =
+            data && Array.isArray(data.sections) ? data.sections : [];
+          for (const sec of sectionsRaw as Array<Record<string, unknown>>) {
+            const secId = typeof sec.id === "string" ? sec.id : "";
+            const secLabel = typeof sec.label === "string" ? sec.label : "";
+            const note = typeof sec.note === "string" ? sec.note.trim() : "";
+            const items = Array.isArray(sec.items) ? sec.items : [];
+            for (const id of items) {
+              if (typeof id !== "string") continue;
+              // Sections are disjoint by construction (admin editor
+              // enforces it), but if duplicates ever leak through, the
+              // first section wins — deterministic.
+              if (secId && !(id in sectionIdByItemId)) {
+                sectionIdByItemId[id] = secId;
+              }
+              if (secLabel && !(id in sectionLabelByItemId)) {
+                sectionLabelByItemId[id] = secLabel;
+              }
+              if (note && !(id in sectionNoteByItemId)) {
+                sectionNoteByItemId[id] = note;
+              }
+            }
+          }
+
           if (itemIds && itemIds.length > 0) {
-            setCartItems(buildFromFirestoreIds(itemIds));
+            setCartItems(
+              buildFromFirestoreIds(
+                itemIds,
+                itemNotes,
+                sectionNoteByItemId,
+                sectionIdByItemId,
+                sectionLabelByItemId,
+              ),
+            );
           } else {
             console.info(
               "[loadTemplate] Firestore doc not found, using hardcoded fallback",

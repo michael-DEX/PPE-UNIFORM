@@ -15,6 +15,7 @@ import { useAuthContext } from "../../app/AuthProvider";
 import { useInventory } from "../../hooks/useInventory";
 import { commitStockAdjust } from "../../lib/stockCommit";
 import { subtitleFromItem } from "../../lib/itemSubtitle";
+import { ensureJpeg } from "../../utils/convertHeic";
 import Button from "../../components/ui/Button";
 import Spinner from "../../components/ui/Spinner";
 import type { Item } from "../../types";
@@ -125,17 +126,40 @@ export default function ScanReceivePage() {
     setScanError(null);
   }
 
-  function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+    // Read off the synthetic event synchronously before the await — React
+    // doesn't pool events in 19, but the input's value is reset whenever
+    // the user picks again, so capture early.
     const file = e.target.files?.[0];
-    if (file) handleFileSelect(file);
+    if (!file) return;
+    try {
+      const safeFile = await ensureJpeg(file);
+      handleFileSelect(safeFile);
+    } catch (err) {
+      setScanError(
+        err instanceof Error ? err.message : "Failed to convert image.",
+      );
+    }
   }
 
-  function handleDrop(e: React.DragEvent) {
+  async function handleDrop(e: React.DragEvent) {
     e.preventDefault();
     setDragging(false);
     const file = e.dataTransfer.files?.[0];
-    if (file && file.type.startsWith("image/")) {
-      handleFileSelect(file);
+    if (!file) return;
+    // Accept anything the browser tagged as image/* OR a HEIC/HEIF dropped
+    // without a MIME (some Finder drops on older macOS arrive untyped).
+    const lowerName = file.name.toLowerCase();
+    const isHeicByName =
+      lowerName.endsWith(".heic") || lowerName.endsWith(".heif");
+    if (!file.type.startsWith("image/") && !isHeicByName) return;
+    try {
+      const safeFile = await ensureJpeg(file);
+      handleFileSelect(safeFile);
+    } catch (err) {
+      setScanError(
+        err instanceof Error ? err.message : "Failed to convert image.",
+      );
     }
   }
 

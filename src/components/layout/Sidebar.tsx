@@ -15,6 +15,7 @@ import {
   Database,
   ListChecks,
   Tags,
+  X,
 } from "lucide-react";
 import { onSnapshot, query, where, orderBy } from "firebase/firestore";
 import { onboardingDraftsRef } from "../../lib/firestore";
@@ -93,6 +94,18 @@ export default function Sidebar({ open, onClose, collapsed, onToggleCollapse }: 
     >
       {/* Navy accent bar at very top */}
       <div className="h-1 bg-navy-700 shrink-0" />
+
+      {/* Mobile-only close affordance. Desktop hides it via `md:hidden`;
+          on mobile the user can also dismiss by tapping the backdrop or
+          navigating away (Sidebar's location-change effect closes too). */}
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Close menu"
+        className="md:hidden absolute top-3 right-3 p-1.5 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors z-10"
+      >
+        <X size={18} />
+      </button>
 
       <div className={`border-b border-gray-200 flex items-center ${collapsed ? "md:justify-center md:p-2 p-4" : "p-4"}`}>
         <div className={collapsed ? "md:hidden" : ""}>

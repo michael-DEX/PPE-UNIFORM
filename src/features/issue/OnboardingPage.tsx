@@ -31,17 +31,17 @@ import {
 import { db } from "../../lib/firebase";
 import { useAuthContext } from "../../app/AuthProvider";
 import { useInventory } from "../../hooks/useInventory";
-import { useCatalogCategories } from "../../hooks/useCatalogCategories";
 import { commitIssue } from "../../lib/issueCommit";
 import { IssueCartProvider, useIssueCart } from "./IssueCartContext";
 import OnboardingItemCard from "./OnboardingItemCard";
 import {
-  groupByCategory,
+  groupBySection,
   getRowState,
-  type CategoryFilter,
+  ALL_SECTIONS_FILTER,
+  UNASSIGNED_SECTION_ID,
+  type SectionFilter,
   type RowState,
 } from "./onboardingRowState";
-import { getCategoryLabel } from "../../constants/catalogCategories";
 import Spinner from "../../components/ui/Spinner";
 import Button from "../../components/ui/Button";
 import { useToast } from "../../components/ui/Toast";
@@ -59,7 +59,6 @@ function OnboardingFlow() {
   const { logisticsUser } = useAuthContext();
   const toast = useToast();
   const { items: firestoreItems, loading: itemsLoading } = useInventory();
-  const { tree: categoryTree } = useCatalogCategories();
   const {
     cartItems,
     member,
@@ -93,13 +92,15 @@ function OnboardingFlow() {
     Map<string, Date>
   >(new Map());
 
-  // Step 0 narrowed from 11 fields (First/Last/Email/Phone/Rank/Role + 5 sizes)
-  // down to 3. The dropped 8 fields are stubbed with empty strings when writing
-  // drafts so the OnboardingDraft.form type stays valid and legacy drafts still
-  // load without a migration.
+  // Step 0 captures First/Last/Email only. The OnboardingDraft.form type
+  // also carries five size slots (shirt/pants/boots/helmet/gloves) that
+  // aren't editable here yet — we stub them with empty strings on write
+  // so the type stays valid without a migration.
   const [form, setForm] = useState({ firstName: "", lastName: "", email: "" });
 
-  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
+  const [sectionFilter, setSectionFilter] = useState<SectionFilter>(
+    ALL_SECTIONS_FILTER,
+  );
   // Tracks which cards the user has EXPLICITLY collapsed via the Done
   // button (or the ChevronUp affordance). Default behavior: cards render
   // expanded. A card collapses only when the user opts in, and re-expands
@@ -182,9 +183,9 @@ function OnboardingFlow() {
       const snap = await getDoc(doc(db, "onboarding_drafts", draftId));
       if (snap.exists()) {
         const data = snap.data();
-        // Only the 3 active fields are pulled into form state. Legacy fields
-        // (phone/rank/role/shirt/pants/boots/helmet/gloves) are ignored even
-        // if they exist on the stored doc.
+        // Only the 3 active fields are pulled into form state. Stale keys
+        // on legacy drafts (phone/rank/role/shirt/pants/boots/helmet/gloves)
+        // are ignored even if they exist on the stored doc.
         setForm({
           firstName: data.form?.firstName ?? "",
           lastName: data.form?.lastName ?? "",
@@ -225,16 +226,13 @@ function OnboardingFlow() {
             ? `${form.lastName}, ${form.firstName}`
             : "",
         memberId: member?.id ?? null,
-        // Write the legacy 11-field shape for backward compat — stub the
-        // removed fields with empty strings so OnboardingDraft.form stays
-        // type-valid without needing a schema migration.
+        // OnboardingDraft.form mirrors the editable fields in step 0
+        // (name + email) plus size slots that aren't captured here yet —
+        // stub the size keys with empty strings so the type stays valid.
         form: {
           firstName: form.firstName,
           lastName: form.lastName,
           email: form.email,
-          rank: "",
-          role: "",
-          phone: "",
           shirt: "",
           pants: "",
           boots: "",
@@ -410,7 +408,7 @@ function OnboardingFlow() {
   // ── Derived state for step 1 rendering ────────────────────────────────
 
   const groups = useMemo(
-    () => groupByCategory(cartItems, firestoreItems, alreadyIssued),
+    () => groupBySection(cartItems, firestoreItems, alreadyIssued),
     [cartItems, firestoreItems, alreadyIssued],
   );
 
@@ -434,7 +432,8 @@ function OnboardingFlow() {
           }).length;
           const readyInGroup = rows.length - remaining;
           return {
-            category: g.category,
+            sectionId: g.sectionId,
+            sectionLabel: g.sectionLabel,
             rows,
             readyCount: readyInGroup,
             totalCount: rows.length,
@@ -444,6 +443,17 @@ function OnboardingFlow() {
         .filter((g) => g.rows.length > 0),
     [groups, fsItemsById, alreadyIssued],
   );
+
+  // Graceful degradation: when the template has no admin-defined
+  // sections, every active row lands in the synthetic "Unassigned"
+  // bucket. In that case the per-section filter pill ("Unassigned · N")
+  // duplicates the "All" pill, so we collapse the row to just "All";
+  // group headers also drop the redundant "Unassigned" label and
+  // display "All items" instead. Pre-Phase-2 docs and any session
+  // started before sections were created hit this path.
+  const onlyUnassigned =
+    activeGroups.length === 1 &&
+    activeGroups[0].sectionId === UNASSIGNED_SECTION_ID;
 
   const previouslyIssuedRows = useMemo(() => {
     const list: CartItem[] = [];
@@ -593,20 +603,22 @@ function OnboardingFlow() {
 
   // ── Step 1 — gear issuance (card list) ─────────────────────────────────
 
-  const filterPills: Array<{ id: CategoryFilter; label: string; count: number }> =
-    [
-      { id: "all", label: "All", count: pendingCount },
-      ...activeGroups.map((g) => ({
-        id: g.category,
-        label: getCategoryLabel(g.category, categoryTree),
-        count: g.remaining,
-      })),
-    ];
+  const filterPills: Array<{ id: SectionFilter; label: string; count: number }> =
+    onlyUnassigned
+      ? [{ id: ALL_SECTIONS_FILTER, label: "All", count: pendingCount }]
+      : [
+          { id: ALL_SECTIONS_FILTER, label: "All", count: pendingCount },
+          ...activeGroups.map((g) => ({
+            id: g.sectionId,
+            label: g.sectionLabel,
+            count: g.remaining,
+          })),
+        ];
 
   const visibleGroups =
-    categoryFilter === "all"
+    sectionFilter === ALL_SECTIONS_FILTER
       ? activeGroups
-      : activeGroups.filter((g) => g.category === categoryFilter);
+      : activeGroups.filter((g) => g.sectionId === sectionFilter);
 
   const notesLabel = notes.trim() ? "Notes (1 line)" : "Notes";
 
@@ -637,18 +649,18 @@ function OnboardingFlow() {
         </section>
       )}
 
-      {/* Category filter pills — sticky */}
+      {/* Section filter pills — sticky */}
       <nav
-        aria-label="Category filter"
+        aria-label="Section filter"
         className="sticky top-0 z-10 bg-white border-b border-slate-200 px-4 py-2.5 flex gap-1.5 overflow-x-auto"
       >
         {filterPills.map((p) => {
-          const isActive = categoryFilter === p.id;
+          const isActive = sectionFilter === p.id;
           return (
             <button
               key={p.id}
               type="button"
-              onClick={() => setCategoryFilter(p.id)}
+              onClick={() => setSectionFilter(p.id)}
               aria-pressed={isActive}
               className={`rounded-full px-3 py-1.5 text-xs font-medium whitespace-nowrap min-h-[32px] transition-colors ${
                 isActive
@@ -664,11 +676,22 @@ function OnboardingFlow() {
 
       {/* Main scrollable content */}
       <main className="flex-1 px-4 py-3 space-y-4">
-        {visibleGroups.map((group) => (
-          <section key={group.category}>
-            {categoryFilter === "all" && (
+        {visibleGroups.map((group) => {
+          // Items in the same group all belong to the same template
+          // section by construction, so they all share the same
+          // sectionNote. Read it off the first row.
+          const sectionNote = group.rows[0]?.sectionNote;
+          const headerLabel = onlyUnassigned ? "All items" : group.sectionLabel;
+          return (
+          <section key={group.sectionId}>
+            {sectionNote && (
+              <div className="mb-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800 whitespace-pre-line">
+                {sectionNote}
+              </div>
+            )}
+            {sectionFilter === ALL_SECTIONS_FILTER && (
               <p className="text-xs text-slate-500 uppercase tracking-wider font-medium px-1 mt-1 mb-2">
-                {getCategoryLabel(group.category, categoryTree)} · {group.readyCount}/
+                {headerLabel} · {group.readyCount}/
                 {group.totalCount} ready
               </p>
             )}
@@ -697,7 +720,8 @@ function OnboardingFlow() {
               })}
             </div>
           </section>
-        ))}
+          );
+        })}
 
         {visibleGroups.length === 0 && (
           <div className="text-center py-8 text-sm text-slate-400">
@@ -706,7 +730,7 @@ function OnboardingFlow() {
         )}
 
         {/* Previously-issued section — only under "All" filter */}
-        {categoryFilter === "all" && previouslyIssuedRows.length > 0 && (
+        {sectionFilter === ALL_SECTIONS_FILTER && previouslyIssuedRows.length > 0 && (
           <section className="mt-6">
             <button
               type="button"

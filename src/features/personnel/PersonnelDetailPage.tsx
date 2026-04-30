@@ -39,15 +39,6 @@ import type {
   Personnel,
 } from "../../types";
 
-const ROLE_LABELS: Record<string, string> = {
-  rescue_specialist: "Rescue Specialist",
-  search_specialist: "Search Specialist",
-  medical_specialist: "Medical Specialist",
-  logistics_specialist: "Logistics Specialist",
-  task_force_leader: "Task Force Leader",
-  k9_specialist: "K9 Specialist",
-};
-
 // Static list so the Sizes section renders in a deterministic order
 // regardless of which fields are set on a given member's sizes doc.
 // Labels map to keys in `MemberSizes` (src/types/index.ts). The phase-3
@@ -214,18 +205,10 @@ export default function PersonnelDetailPage() {
           day: "numeric",
         })}`;
 
-  // Profile subtitle: compact "{rank} · {role}" when at least one is set,
-  // else the placeholder "Email, rank, role" hint.
-  const profileSubtitle = (() => {
-    const rank = member.rank?.trim();
-    const roleLabel = member.role
-      ? ROLE_LABELS[member.role] ?? member.role
-      : undefined;
-    if (rank || roleLabel) {
-      return `${rank ?? "—"} · ${roleLabel ?? "—"}`;
-    }
-    return "Email, rank, role";
-  })();
+  // Profile subtitle: surface the email so the collapsed section gives a
+  // quick preview of what's inside (matches the "N sizes set" pattern on
+  // the Sizes section just below).
+  const profileSubtitle = member.email || "—";
 
   // Sizes subtitle: "N sizes set" when any are populated, else "Not set".
   const sizesCount = Object.values(member.sizes ?? {}).filter(
@@ -335,7 +318,7 @@ export default function PersonnelDetailPage() {
           className="w-full min-h-12 bg-slate-900 text-white rounded-md font-medium text-[15px] flex items-center justify-center gap-2 hover:bg-slate-800 transition-colors"
         >
           <ShoppingCart size={18} />
-          Issue Equipment
+          Issue Gear
         </button>
         {onboardingState.status === "not_started" && (
           <button
@@ -346,7 +329,7 @@ export default function PersonnelDetailPage() {
             className="mt-2 w-full min-h-10 bg-white border border-slate-300 rounded-md font-medium text-sm text-slate-900 flex items-center justify-center gap-1.5 hover:bg-slate-50 transition-colors"
           >
             <UserPlus size={16} />
-            Initial Equipment Issue
+            Onboard & Issue Gear
           </button>
         )}
         {onboardingState.status === "in_progress" && (
@@ -400,16 +383,6 @@ export default function PersonnelDetailPage() {
             <div className="border-t border-slate-100 px-3.5 py-3">
               <dl className="text-sm space-y-2">
                 <ProfileRow label="Email" value={member.email} />
-                <ProfileRow label="Rank" value={member.rank} />
-                <ProfileRow
-                  label="Role"
-                  value={
-                    member.role
-                      ? ROLE_LABELS[member.role] ?? member.role
-                      : undefined
-                  }
-                />
-                <ProfileRow label="Phone" value={member.phone} />
               </dl>
             </div>
           )}

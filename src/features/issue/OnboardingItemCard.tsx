@@ -248,6 +248,9 @@ function EditableLayout({
               {itemSubtitle}
             </p>
           )}
+          {row.note && (
+            <p className="text-xs text-slate-500 italic mt-0.5">{row.note}</p>
+          )}
           <p
             className={`text-xs mt-0.5 flex items-center gap-1 ${
               isOOS ? "text-[#993C1D]" : "text-slate-500"

@@ -9,15 +9,6 @@ import Spinner from "../../components/ui/Spinner";
 import EmptyState from "../../components/ui/EmptyState";
 import AddMemberModal from "./AddMemberModal";
 
-const ROLE_LABELS: Record<string, string> = {
-  rescue_specialist: "Rescue",
-  search_specialist: "Search",
-  medical_specialist: "Medical",
-  logistics_specialist: "Logistics",
-  task_force_leader: "TF Leader",
-  k9_specialist: "K9",
-};
-
 function getInitials(firstName: string, lastName: string): string {
   const f = firstName.trim().charAt(0).toUpperCase();
   const l = lastName.trim().charAt(0).toUpperCase();
@@ -83,56 +74,48 @@ export default function PersonnelPage() {
       ) : (
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
           <ul>
-            {filtered.map((m) => {
-              const roleLabel = m.role ? ROLE_LABELS[m.role] || m.role : "no role";
-              return (
-                <li
-                  key={m.id}
-                  className="border-b border-slate-100 last:border-b-0"
+            {filtered.map((m) => (
+              <li
+                key={m.id}
+                className="border-b border-slate-100 last:border-b-0"
+              >
+                <button
+                  type="button"
+                  onClick={() => navigate(`/logistics/personnel/${m.id}`)}
+                  aria-label={`${m.firstName} ${m.lastName}, ${m.isActive ? "Active" : "Inactive"}`}
+                  className="w-full text-left flex items-center gap-3 px-4 py-3 hover:bg-slate-50 active:bg-slate-100 transition-colors"
                 >
-                  <button
-                    type="button"
-                    onClick={() => navigate(`/logistics/personnel/${m.id}`)}
-                    aria-label={`${m.firstName} ${m.lastName}, ${roleLabel}, ${m.isActive ? "Active" : "Inactive"}`}
-                    className="w-full text-left flex items-center gap-3 px-4 py-3 hover:bg-slate-50 active:bg-slate-100 transition-colors"
+                  {/* Avatar */}
+                  <span
+                    aria-hidden="true"
+                    className="shrink-0 h-10 w-10 rounded-full bg-navy-100 text-navy-700 inline-flex items-center justify-center text-sm font-semibold"
                   >
-                    {/* Avatar */}
-                    <span
-                      aria-hidden="true"
-                      className="shrink-0 h-10 w-10 rounded-full bg-navy-100 text-navy-700 inline-flex items-center justify-center text-sm font-semibold"
+                    {getInitials(m.firstName, m.lastName)}
+                  </span>
+
+                  {/* Name + email */}
+                  <span className="flex-1 min-w-0 flex flex-col">
+                    <span className="font-medium text-slate-900 text-sm truncate">
+                      {m.lastName}, {m.firstName}
+                    </span>
+                    <span className="text-xs text-slate-500 truncate">
+                      {m.email}
+                    </span>
+                  </span>
+
+                  {/* Status + chevron */}
+                  <span className="flex items-center gap-2 shrink-0">
+                    <Badge
+                      variant={m.isActive ? "success" : "default"}
+                      className="whitespace-nowrap"
                     >
-                      {getInitials(m.firstName, m.lastName)}
-                    </span>
-
-                    {/* Name + email */}
-                    <span className="flex-1 min-w-0 flex flex-col">
-                      <span className="font-medium text-slate-900 text-sm truncate">
-                        {m.lastName}, {m.firstName}
-                      </span>
-                      <span className="text-xs text-slate-500 truncate">
-                        {m.email}
-                      </span>
-                    </span>
-
-                    {/* Role + status + chevron */}
-                    <span className="flex items-center gap-2 shrink-0">
-                      {m.role && (
-                        <Badge className="whitespace-nowrap">
-                          {ROLE_LABELS[m.role] || m.role}
-                        </Badge>
-                      )}
-                      <Badge
-                        variant={m.isActive ? "success" : "default"}
-                        className="whitespace-nowrap"
-                      >
-                        {m.isActive ? "Active" : "Inactive"}
-                      </Badge>
-                      <ChevronRight className="h-4 w-4 text-slate-400" />
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
+                      {m.isActive ? "Active" : "Inactive"}
+                    </Badge>
+                    <ChevronRight className="h-4 w-4 text-slate-400" />
+                  </span>
+                </button>
+              </li>
+            ))}
           </ul>
         </div>
       )}

@@ -6,6 +6,7 @@ import type {
   Item,
   ItemChanges,
   ItemCondition,
+  OnboardingTemplateSection,
   TransactionType,
 } from "../types";
 
@@ -50,12 +51,22 @@ export interface AuditEventInput {
    * correctly. Includes `id` for forensic lookup. */
   snapshot?: Item;
   /**
-   * Before/after `itemIds` arrays for `onboarding_template_edit` events.
-   * See `AuditEvent.templateChange` in types/index.ts for the read-side
-   * shape. One event per Save; reviewers diff before vs. after. */
+   * Before/after snapshots for `onboarding_template_edit` events. See
+   * `AuditEvent.templateChange` in types/index.ts for the read-side shape.
+   * One event per Save; reviewers diff before vs. after. The flat
+   * `before` / `after` arrays are kept for backward compat with older
+   * audit log readers; the `sections*`, `unassigned*`, and `itemNotes*`
+   * fields carry the structured payload introduced with sections + notes.
+   */
   templateChange?: {
     before: string[];
     after: string[];
+    sectionsBefore?: OnboardingTemplateSection[];
+    sectionsAfter?: OnboardingTemplateSection[];
+    unassignedBefore?: string[];
+    unassignedAfter?: string[];
+    itemNotesBefore?: Record<string, string>;
+    itemNotesAfter?: Record<string, string>;
   };
 }
 

@@ -231,7 +231,7 @@ function AuditRow({
         </Badge>
 
         <div className="flex-1 min-w-0">
-          <span className="text-sm font-medium text-slate-900 truncate block">
+          <span className="text-sm font-medium text-slate-900 line-clamp-2">
             {event.action}
           </span>
           <div className="flex items-center gap-3 text-xs text-slate-500 mt-0.5">

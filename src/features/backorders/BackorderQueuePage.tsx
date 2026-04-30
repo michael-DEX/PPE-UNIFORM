@@ -24,7 +24,6 @@ import { backorderedRef, orderListsRef } from "../../lib/firestore";
 import { useAuthContext } from "../../app/AuthProvider";
 import { useInventory } from "../../hooks/useInventory";
 import Spinner from "../../components/ui/Spinner";
-import EmptyState from "../../components/ui/EmptyState";
 import Modal from "../../components/ui/Modal";
 import { subtitleFromItem } from "../../lib/itemSubtitle";
 import type { BackorderItem, Item, OrderListItem } from "../../types";
@@ -250,33 +249,36 @@ export default function BackorderQueuePage() {
         <h1 className="text-2xl font-bold text-navy-900">Backorder Queue</h1>
       </div>
 
-      {/* Summary stats */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="bg-white rounded-lg border border-slate-200 px-4 py-3">
-          <div className="text-xs font-medium text-slate-500 uppercase tracking-wide">
-            Pending Backorders
+      {/* Summary stats — hidden when there's nothing to count, so the
+          empty state doesn't sit under three meaningless "0" cards. */}
+      {(pending.length > 0 || uniqueMembers > 0 || uniqueItems > 0) && (
+        <div className="grid grid-cols-3 gap-4">
+          <div className="bg-white rounded-lg border border-slate-200 px-4 py-3">
+            <div className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+              Pending Backorders
+            </div>
+            <div className="text-2xl font-bold text-slate-900 mt-1">
+              {pending.length}
+            </div>
           </div>
-          <div className="text-2xl font-bold text-slate-900 mt-1">
-            {pending.length}
+          <div className="bg-white rounded-lg border border-slate-200 px-4 py-3">
+            <div className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+              Members Waiting
+            </div>
+            <div className="text-2xl font-bold text-slate-900 mt-1">
+              {uniqueMembers}
+            </div>
+          </div>
+          <div className="bg-white rounded-lg border border-slate-200 px-4 py-3">
+            <div className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+              Items Needed
+            </div>
+            <div className="text-2xl font-bold text-slate-900 mt-1">
+              {uniqueItems}
+            </div>
           </div>
         </div>
-        <div className="bg-white rounded-lg border border-slate-200 px-4 py-3">
-          <div className="text-xs font-medium text-slate-500 uppercase tracking-wide">
-            Members Waiting
-          </div>
-          <div className="text-2xl font-bold text-slate-900 mt-1">
-            {uniqueMembers}
-          </div>
-        </div>
-        <div className="bg-white rounded-lg border border-slate-200 px-4 py-3">
-          <div className="text-xs font-medium text-slate-500 uppercase tracking-wide">
-            Items Needed
-          </div>
-          <div className="text-2xl font-bold text-slate-900 mt-1">
-            {uniqueItems}
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* View toggle */}
       <div className="flex gap-1 border-b border-slate-200">
@@ -308,20 +310,34 @@ export default function BackorderQueuePage() {
         </button>
       </div>
 
-      {/* Table */}
+      {/* Table — empty states are inlined (rather than via the shared
+          <EmptyState>) so we can dial down the vertical padding here
+          without affecting empty states elsewhere in the app. */}
       {displayed.length === 0 ? (
         viewMode === "pending" ? (
-          <EmptyState
-            icon={<Package size={48} />}
-            title="No pending backorders"
-            description="All items are currently in stock"
-          />
+          <div className="flex flex-col items-center justify-center py-10 text-center">
+            <div className="text-slate-300 mb-4">
+              <Package size={48} />
+            </div>
+            <h3 className="text-lg font-medium text-slate-700">
+              No pending backorders
+            </h3>
+            <p className="text-sm text-slate-500 mt-1 max-w-sm">
+              All items are currently in stock
+            </p>
+          </div>
         ) : (
-          <EmptyState
-            icon={<Check size={48} />}
-            title="No fulfilled backorders yet"
-            description="Fulfilled backorders will appear here"
-          />
+          <div className="flex flex-col items-center justify-center py-10 text-center">
+            <div className="text-slate-300 mb-4">
+              <Check size={48} />
+            </div>
+            <h3 className="text-lg font-medium text-slate-700">
+              No fulfilled backorders yet
+            </h3>
+            <p className="text-sm text-slate-500 mt-1 max-w-sm">
+              Fulfilled backorders will appear here
+            </p>
+          </div>
         )
       ) : viewMode === "pending" ? (
         <PendingTable

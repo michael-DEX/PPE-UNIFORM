@@ -9,15 +9,22 @@
  *     Firestore-first refactor.
  *   - 2B (shipped): three render states (loading / not-seeded / seeded);
  *     seeded view was read-only with disabled edit controls.
- *   - 2C (this file): edit mode live — reorder, remove, add, prune missing,
- *     dirty-state banner + beforeunload guard, race-condition banner,
- *     Save button writes a batched doc + audit event.
+ *   - 2C (shipped): edit mode for the flat itemIds list — reorder, remove,
+ *     add, prune missing, dirty-state + race banners, batched Save.
+ *   - 2D (this file): manual sections + per-section notes + per-item
+ *     notes. Schema widens to `{ sections, unassigned, itemNotes }`;
+ *     legacy `itemIds` is still written redundantly for the rollback
+ *     compatibility window.
  *
- * Editing model: all mutations update `pendingItemIds` (local state) only.
- * Firestore is untouched until the user clicks Save. A `hasLocalEditsRef`
- * guard prevents the live `onSnapshot` subscription from stomping on the
- * user's in-progress edits — if another admin saves while this admin is
- * editing, we preserve pending + show a race banner.
+ * Editing model (unchanged in spirit from 2C): all mutations update local
+ * `pending*` state only. Firestore is untouched until the user clicks
+ * Save. A `hasLocalEditsRef` guard prevents the live `onSnapshot`
+ * subscription from stomping on the user's in-progress edits — if another
+ * admin saves while this admin is editing, we preserve pending + show a
+ * race banner.
+ *
+ * Issuance workflow consumption is NOT changed in this commit — sections
+ * and notes will surface in the issuance UI in Phase 3.
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -30,10 +37,8 @@ import {
 } from "firebase/firestore";
 import {
   AlertTriangle,
-  ArrowDown,
-  ArrowUp,
   ListChecks,
-  Trash2,
+  Plus,
 } from "lucide-react";
 import { db } from "../../lib/firebase";
 import { useAuthContext } from "../../app/AuthProvider";
@@ -44,22 +49,75 @@ import { seedOnboardingTemplate } from "../../lib/onboardingTemplateSeed";
 import { addAuditEventToBatch } from "../../lib/audit";
 import { subtitleFromItem } from "../../lib/itemSubtitle";
 import { ONBOARDING_TEMPLATE_ITEM_NAMES } from "../../constants/onboardingTemplate";
-import type { Item } from "../../types";
+import SectionCard, { type ResolvedItem } from "./onboardingTemplate/SectionCard";
+import UnassignedSection from "./onboardingTemplate/UnassignedSection";
+import type {
+  Item,
+  OnboardingTemplateDoc,
+  OnboardingTemplateSection,
+} from "../../types";
 
-interface TemplateDoc {
-  itemIds: string[];
-  updatedAt?: { toDate?: () => Date };
-  updatedBy?: string;
+// ── Local helpers ───────────────────────────────────────────────────────
+
+interface NormalizedTemplate {
+  sections: OnboardingTemplateSection[];
+  unassigned: string[];
+  itemNotes: Record<string, string>;
 }
 
-// ── Small local helpers ─────────────────────────────────────────────────
+/**
+ * Read-time compat: convert any template doc shape — pre-sections (only
+ * `itemIds`), post-sections (`sections` + `unassigned`), or a partial
+ * mix — into the canonical triple the page edits.
+ */
+function normalizeTemplate(
+  raw: OnboardingTemplateDoc | null | undefined,
+): NormalizedTemplate {
+  if (!raw) return { sections: [], unassigned: [], itemNotes: {} };
 
-function arraysEqual(a: string[], b: string[]): boolean {
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) {
-    if (a[i] !== b[i]) return false;
+  if (raw.sections !== undefined || raw.unassigned !== undefined) {
+    return {
+      sections: Array.isArray(raw.sections) ? raw.sections : [],
+      unassigned: Array.isArray(raw.unassigned) ? raw.unassigned : [],
+      itemNotes:
+        raw.itemNotes && typeof raw.itemNotes === "object" ? raw.itemNotes : {},
+    };
   }
-  return true;
+
+  // Pre-sections doc: everything is unassigned.
+  return {
+    sections: [],
+    unassigned: Array.isArray(raw.itemIds) ? raw.itemIds : [],
+    itemNotes: {},
+  };
+}
+
+/**
+ * Stable JSON-style stringify that sorts object keys before serializing.
+ * Used as a cheap deep-equal substitute for the `pending` vs `baseline`
+ * vs `current` triple comparisons. Sorts keys because `itemNotes` is a
+ * Record whose insertion order can drift across snapshots and edits, and
+ * Firestore may return object fields in a different order than we wrote
+ * them. Arrays preserve order (semantically meaningful here).
+ */
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) {
+    return "[" + value.map(stableStringify).join(",") + "]";
+  }
+  const obj = value as Record<string, unknown>;
+  const keys = Object.keys(obj).sort();
+  return (
+    "{" +
+    keys
+      .map((k) => JSON.stringify(k) + ":" + stableStringify(obj[k]))
+      .join(",") +
+    "}"
+  );
+}
+
+function eqNorm(a: NormalizedTemplate, b: NormalizedTemplate): boolean {
+  return stableStringify(a) === stableStringify(b);
 }
 
 function matchesQuery(item: Item, q: string): boolean {
@@ -71,7 +129,13 @@ function matchesQuery(item: Item, q: string): boolean {
   return haystacks.some((h) => h.toLowerCase().includes(query));
 }
 
-function buildActionText(before: string[], after: string[]): string {
+function flattenItems(norm: NormalizedTemplate): string[] {
+  return [...norm.sections.flatMap((s) => s.items), ...norm.unassigned];
+}
+
+/** Legacy phrasing — preserves existing audit log copy for users who
+ *  haven't started using sections + notes yet. */
+function buildLegacyActionText(before: string[], after: string[]): string {
   const added = after.filter((id) => !before.includes(id)).length;
   const removed = before.filter((id) => !after.includes(id)).length;
   if (added === 0 && removed === 0) return "Reordered onboarding template";
@@ -82,6 +146,150 @@ function buildActionText(before: string[], after: string[]): string {
   return `Updated onboarding template (${added} added, ${removed} removed)`;
 }
 
+/** Richer phrasing summarizing section + note changes in a `;`-joined
+ *  list. Falls back to the legacy text when no sections / notes are in
+ *  play before or after, so the audit log doesn't visibly regress for
+ *  admins who haven't adopted sections yet. */
+function buildActionText(
+  before: NormalizedTemplate,
+  after: NormalizedTemplate,
+): string {
+  const beforeFlat = flattenItems(before);
+  const afterFlat = flattenItems(after);
+
+  const noSectionsOrNotes =
+    before.sections.length === 0 &&
+    after.sections.length === 0 &&
+    Object.keys(before.itemNotes).length === 0 &&
+    Object.keys(after.itemNotes).length === 0;
+  if (noSectionsOrNotes) {
+    return buildLegacyActionText(beforeFlat, afterFlat);
+  }
+
+  const parts: string[] = [];
+
+  const beforeSecMap = new Map(before.sections.map((s) => [s.id, s]));
+  const afterSecMap = new Map(after.sections.map((s) => [s.id, s]));
+
+  const addedSecs = after.sections.filter((s) => !beforeSecMap.has(s.id));
+  const removedSecs = before.sections.filter((s) => !afterSecMap.has(s.id));
+  const renamedSecs = after.sections.filter((s) => {
+    const b = beforeSecMap.get(s.id);
+    return b && b.label !== s.label;
+  });
+
+  if (addedSecs.length === 1) {
+    parts.push(`Added section "${addedSecs[0].label}"`);
+  } else if (addedSecs.length > 1) {
+    parts.push(
+      `Added ${addedSecs.length} sections (${addedSecs.map((s) => s.label).join(", ")})`,
+    );
+  }
+
+  if (removedSecs.length === 1) {
+    const itemCount = removedSecs[0].items.length;
+    if (itemCount > 0) {
+      parts.push(
+        `Deleted section "${removedSecs[0].label}" and moved ${itemCount} item${itemCount === 1 ? "" : "s"} to Unassigned`,
+      );
+    } else {
+      parts.push(`Deleted section "${removedSecs[0].label}"`);
+    }
+  } else if (removedSecs.length > 1) {
+    parts.push(
+      `Deleted ${removedSecs.length} sections (${removedSecs.map((s) => s.label).join(", ")})`,
+    );
+  }
+
+  if (renamedSecs.length === 1) {
+    const b = beforeSecMap.get(renamedSecs[0].id);
+    if (b) parts.push(`Renamed section "${b.label}" → "${renamedSecs[0].label}"`);
+  } else if (renamedSecs.length > 1) {
+    parts.push(`Renamed ${renamedSecs.length} sections`);
+  }
+
+  // Cross-section item moves — exclude items that moved because their
+  // section was deleted (those are already covered by the deletion text).
+  const beforeLoc = new Map<string, string | null>();
+  for (const s of before.sections)
+    for (const id of s.items) beforeLoc.set(id, s.id);
+  for (const id of before.unassigned) beforeLoc.set(id, null);
+  const afterLoc = new Map<string, string | null>();
+  for (const s of after.sections)
+    for (const id of s.items) afterLoc.set(id, s.id);
+  for (const id of after.unassigned) afterLoc.set(id, null);
+
+  let movedCount = 0;
+  for (const [id, prevLoc] of beforeLoc) {
+    if (!afterLoc.has(id)) continue;
+    const newLoc = afterLoc.get(id) ?? null;
+    if (prevLoc === newLoc) continue;
+    if (prevLoc !== null && !afterSecMap.has(prevLoc)) continue; // deleted-section cascade
+    movedCount++;
+  }
+  if (movedCount > 0) {
+    parts.push(
+      `Moved ${movedCount} item${movedCount === 1 ? "" : "s"} between sections`,
+    );
+  }
+
+  // Item add/remove (flat).
+  const beforeIds = new Set(beforeLoc.keys());
+  const afterIds = new Set(afterLoc.keys());
+  let itemsAdded = 0;
+  for (const id of afterIds) if (!beforeIds.has(id)) itemsAdded++;
+  let itemsRemoved = 0;
+  for (const id of beforeIds) if (!afterIds.has(id)) itemsRemoved++;
+  if (itemsAdded > 0)
+    parts.push(`Added ${itemsAdded} item${itemsAdded === 1 ? "" : "s"}`);
+  if (itemsRemoved > 0)
+    parts.push(`Removed ${itemsRemoved} item${itemsRemoved === 1 ? "" : "s"}`);
+
+  // Item notes diff.
+  const noteKeys = new Set([
+    ...Object.keys(before.itemNotes),
+    ...Object.keys(after.itemNotes),
+  ]);
+  let itemNoteChanges = 0;
+  for (const k of noteKeys) {
+    if ((before.itemNotes[k] ?? "") !== (after.itemNotes[k] ?? ""))
+      itemNoteChanges++;
+  }
+  if (itemNoteChanges > 0) {
+    parts.push(
+      `Edited ${itemNoteChanges} item note${itemNoteChanges === 1 ? "" : "s"}`,
+    );
+  }
+
+  // Section notes diff (only sections present in both before and after).
+  let sectionNoteChanges = 0;
+  for (const s of after.sections) {
+    const b = beforeSecMap.get(s.id);
+    if (!b) continue;
+    if ((b.note ?? "") !== (s.note ?? "")) sectionNoteChanges++;
+  }
+  if (sectionNoteChanges > 0) {
+    parts.push(
+      `Edited ${sectionNoteChanges} section note${sectionNoteChanges === 1 ? "" : "s"}`,
+    );
+  }
+
+  if (parts.length === 0) {
+    // Pure reorder fallthrough.
+    if (
+      stableStringify(beforeFlat) !== stableStringify(afterFlat) ||
+      stableStringify(before.sections.map((s) => s.id)) !==
+        stableStringify(after.sections.map((s) => s.id))
+    ) {
+      parts.push("Reordered onboarding template");
+    } else {
+      parts.push("Updated onboarding template");
+    }
+  }
+
+  return parts.join("; ");
+}
+
 // ── Page component ──────────────────────────────────────────────────────
 
 export default function OnboardingTemplatePage() {
@@ -89,23 +297,40 @@ export default function OnboardingTemplatePage() {
   const { items: inventoryItems, loading: inventoryLoading } = useInventory();
   const toast = useToast();
 
-  const [templateDoc, setTemplateDoc] = useState<TemplateDoc | null>(null);
+  const [templateDoc, setTemplateDoc] =
+    useState<OnboardingTemplateDoc | null>(null);
   const [templateLoading, setTemplateLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
 
-  // Edit-mode state.
-  //   pendingItemIds  — what the user sees in the list, reorderable/removable
-  //   baselineItemIds — the snapshot of Firestore the user last synced with;
-  //                     diverges from templateDoc.itemIds IFF another admin
-  //                     saved concurrently, which triggers the race banner.
-  //   hasLocalEditsRef — guards the Firestore → local sync. See effect below.
-  //   saving — disables Save + Discard during the batch commit.
-  //   searchQuery — controls the inline add-item dropdown visibility.
-  const [pendingItemIds, setPendingItemIds] = useState<string[]>([]);
-  const [baselineItemIds, setBaselineItemIds] = useState<string[]>([]);
+  // Editing state — three-piece replacement for the old `pendingItemIds`.
+  const [pendingSections, setPendingSections] = useState<
+    OnboardingTemplateSection[]
+  >([]);
+  const [pendingUnassigned, setPendingUnassigned] = useState<string[]>([]);
+  const [pendingItemNotes, setPendingItemNotes] = useState<
+    Record<string, string>
+  >({});
+
+  // Baseline = what we last synced from Firestore. Diverges from the
+  // current `templateDoc` IFF another admin saved concurrently.
+  const [baselineSnapshot, setBaselineSnapshot] = useState<NormalizedTemplate>({
+    sections: [],
+    unassigned: [],
+    itemNotes: {},
+  });
   const hasLocalEditsRef = useRef(false);
+
   const [saving, setSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Per-section UI state. Expanded set; `pendingFocusSectionId` triggers
+  // the inline rename input to autofocus on a freshly-added section.
+  const [expandedSectionIds, setExpandedSectionIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const [pendingFocusSectionId, setPendingFocusSectionId] = useState<
+    string | null
+  >(null);
 
   // Live subscription so concurrent admin writes surface immediately.
   useEffect(() => {
@@ -115,9 +340,22 @@ export default function OnboardingTemplatePage() {
         if (snap.exists()) {
           const data = snap.data() as DocumentData;
           setTemplateDoc({
-            itemIds: Array.isArray(data.itemIds) ? (data.itemIds as string[]) : [],
+            sections: Array.isArray(data.sections)
+              ? (data.sections as OnboardingTemplateSection[])
+              : undefined,
+            unassigned: Array.isArray(data.unassigned)
+              ? (data.unassigned as string[])
+              : undefined,
+            itemNotes:
+              data.itemNotes && typeof data.itemNotes === "object"
+                ? (data.itemNotes as Record<string, string>)
+                : undefined,
+            itemIds: Array.isArray(data.itemIds)
+              ? (data.itemIds as string[])
+              : undefined,
             updatedAt: data.updatedAt,
-            updatedBy: typeof data.updatedBy === "string" ? data.updatedBy : undefined,
+            updatedBy:
+              typeof data.updatedBy === "string" ? data.updatedBy : undefined,
           });
         } else {
           setTemplateDoc(null);
@@ -139,9 +377,21 @@ export default function OnboardingTemplatePage() {
   useEffect(() => {
     if (!templateDoc) return;
     if (hasLocalEditsRef.current) return;
-    setPendingItemIds(templateDoc.itemIds);
-    setBaselineItemIds(templateDoc.itemIds);
+    const norm = normalizeTemplate(templateDoc);
+    setPendingSections(norm.sections);
+    setPendingUnassigned(norm.unassigned);
+    setPendingItemNotes(norm.itemNotes);
+    setBaselineSnapshot(norm);
   }, [templateDoc]);
+
+  // Clear the autoFocus marker on the next render after a new section is
+  // added — `<input autoFocus>` only runs on mount, so leaving the marker
+  // set won't cause re-focus, but clearing keeps the page state tidy.
+  useEffect(() => {
+    if (pendingFocusSectionId === null) return;
+    const t = setTimeout(() => setPendingFocusSectionId(null), 0);
+    return () => clearTimeout(t);
+  }, [pendingFocusSectionId]);
 
   // ── Derived state ─────────────────────────────────────────────────────
 
@@ -151,40 +401,53 @@ export default function OnboardingTemplatePage() {
     return m;
   }, [inventoryItems]);
 
-  // isDirty: pending vs. CURRENT Firestore. Drives Save button enablement
-  // and the blue unsaved-changes banner.
+  const currentNorm = useMemo(
+    () => normalizeTemplate(templateDoc),
+    [templateDoc],
+  );
+
+  const pendingNorm = useMemo<NormalizedTemplate>(
+    () => ({
+      sections: pendingSections,
+      unassigned: pendingUnassigned,
+      itemNotes: pendingItemNotes,
+    }),
+    [pendingSections, pendingUnassigned, pendingItemNotes],
+  );
+
   const isDirty = useMemo(
-    () =>
-      templateDoc !== null &&
-      !arraysEqual(pendingItemIds, templateDoc.itemIds),
-    [pendingItemIds, templateDoc],
+    () => templateDoc !== null && !eqNorm(pendingNorm, currentNorm),
+    [templateDoc, pendingNorm, currentNorm],
   );
 
-  // hasExternalUpdate: baseline vs. CURRENT Firestore. Drives the amber
-  // race banner. Fires only when another admin saved while this admin was
-  // mid-edit.
   const hasExternalUpdate = useMemo(
-    () =>
-      templateDoc !== null &&
-      !arraysEqual(baselineItemIds, templateDoc.itemIds),
-    [baselineItemIds, templateDoc],
+    () => templateDoc !== null && !eqNorm(baselineSnapshot, currentNorm),
+    [templateDoc, baselineSnapshot, currentNorm],
   );
 
-  // Pending itemIds whose catalog item has been deleted. Drives the
-  // yellow "⚠ N missing" banner and the Prune Missing button.
-  const unresolvedIds = useMemo(
-    () => pendingItemIds.filter((id) => !inventoryById.has(id)),
-    [pendingItemIds, inventoryById],
-  );
+  // All item IDs currently in the template (for typeahead exclusion +
+  // orphan detection).
+  const allPendingItemIds = useMemo(() => {
+    const set = new Set<string>();
+    for (const s of pendingSections) for (const id of s.items) set.add(id);
+    for (const id of pendingUnassigned) set.add(id);
+    return set;
+  }, [pendingSections, pendingUnassigned]);
 
-  // Items NOT currently in the template (for the add-item search), filtered
-  // to active-only so admins don't add inactive items.
+  const unresolvedIds = useMemo(() => {
+    const orphans: string[] = [];
+    for (const id of allPendingItemIds) {
+      if (!inventoryById.has(id)) orphans.push(id);
+    }
+    return orphans;
+  }, [allPendingItemIds, inventoryById]);
+
   const availableItems = useMemo(
     () =>
       inventoryItems.filter(
-        (i) => i.isActive && !pendingItemIds.includes(i.id),
+        (i) => i.isActive && !allPendingItemIds.has(i.id),
       ),
-    [inventoryItems, pendingItemIds],
+    [inventoryItems, allPendingItemIds],
   );
 
   const filteredAvailable = useMemo(
@@ -195,65 +458,285 @@ export default function OnboardingTemplatePage() {
     [availableItems, searchQuery],
   );
 
-  // Resolved rows for render, in template order. Missing (deleted) items
-  // are rendered separately in a summary banner, not mixed into the list.
-  const resolvedRows = useMemo(() => {
-    const rows: Array<{ itemId: string; item: Item }> = [];
-    for (const id of pendingItemIds) {
-      const item = inventoryById.get(id);
-      if (item) rows.push({ itemId: id, item });
-    }
-    return rows;
-  }, [pendingItemIds, inventoryById]);
+  // Resolved items for render — joins each pending ID against the
+  // inventory and pulls in the per-item note. Orphans surface as `item:
+  // null`; SectionCard / UnassignedSection skip rendering those.
+  const resolvedSections = useMemo(
+    () =>
+      pendingSections.map((sec) => ({
+        section: sec,
+        resolvedItems: sec.items.map<ResolvedItem>((id) => ({
+          id,
+          item: inventoryById.get(id) ?? null,
+          note: pendingItemNotes[id] ?? "",
+        })),
+      })),
+    [pendingSections, pendingItemNotes, inventoryById],
+  );
+
+  const resolvedUnassigned = useMemo<ResolvedItem[]>(
+    () =>
+      pendingUnassigned.map((id) => ({
+        id,
+        item: inventoryById.get(id) ?? null,
+        note: pendingItemNotes[id] ?? "",
+      })),
+    [pendingUnassigned, pendingItemNotes, inventoryById],
+  );
+
+  const resolvedItemCount = useMemo(() => {
+    let n = 0;
+    for (const s of resolvedSections)
+      for (const r of s.resolvedItems) if (r.item) n++;
+    for (const r of resolvedUnassigned) if (r.item) n++;
+    return n;
+  }, [resolvedSections, resolvedUnassigned]);
 
   // ── beforeunload prompt while dirty ───────────────────────────────────
   useEffect(() => {
     if (!isDirty) return;
     const handler = (e: BeforeUnloadEvent) => {
       e.preventDefault();
-      // Chrome/Edge require a returnValue assignment to trigger the
-      // native "Leave site?" prompt. Modern browsers ignore the message
-      // string and render their own generic copy — that's expected.
       e.returnValue = "";
     };
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
   }, [isDirty]);
 
-  // ── Edit handlers (all flip hasLocalEditsRef) ─────────────────────────
+  // ── Item location lookup (used by row callbacks) ──────────────────────
 
-  function moveUp(index: number) {
-    if (index <= 0) return;
+  function findItemLocation(
+    itemId: string,
+  ): { fromSecId: string | null; fromIdx: number } | null {
+    for (const sec of pendingSections) {
+      const idx = sec.items.indexOf(itemId);
+      if (idx >= 0) return { fromSecId: sec.id, fromIdx: idx };
+    }
+    const idx = pendingUnassigned.indexOf(itemId);
+    if (idx >= 0) return { fromSecId: null, fromIdx: idx };
+    return null;
+  }
+
+  // ── Section ops ───────────────────────────────────────────────────────
+
+  function addSection() {
+    const id = `sec_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     hasLocalEditsRef.current = true;
-    setPendingItemIds((prev) => {
-      const next = [...prev];
-      [next[index - 1], next[index]] = [next[index], next[index - 1]];
+    setPendingSections((prev) => [
+      ...prev,
+      { id, label: "New Section", items: [] },
+    ]);
+    setExpandedSectionIds((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+    setPendingFocusSectionId(id);
+  }
+
+  function renameSection(secId: string, newLabel: string) {
+    hasLocalEditsRef.current = true;
+    setPendingSections((prev) =>
+      prev.map((s) => (s.id === secId ? { ...s, label: newLabel } : s)),
+    );
+  }
+
+  function updateSectionNote(secId: string, newNote: string) {
+    hasLocalEditsRef.current = true;
+    setPendingSections((prev) =>
+      prev.map((s) => {
+        if (s.id !== secId) return s;
+        if (newNote === "") {
+          // Avoid persisting empty-string notes; absence = no note.
+          const { note: _drop, ...rest } = s;
+          void _drop;
+          return rest;
+        }
+        return { ...s, note: newNote };
+      }),
+    );
+  }
+
+  function deleteSection(secId: string) {
+    const sec = pendingSections.find((s) => s.id === secId);
+    if (!sec) return;
+    hasLocalEditsRef.current = true;
+    setPendingSections((prev) => prev.filter((s) => s.id !== secId));
+    setPendingUnassigned((prev) => [...prev, ...sec.items]);
+    setExpandedSectionIds((prev) => {
+      const next = new Set(prev);
+      next.delete(secId);
       return next;
     });
   }
 
-  function moveDown(index: number) {
+  function moveSectionUp(secId: string) {
     hasLocalEditsRef.current = true;
-    setPendingItemIds((prev) => {
-      if (index >= prev.length - 1) return prev;
+    setPendingSections((prev) => {
+      const idx = prev.findIndex((s) => s.id === secId);
+      if (idx <= 0) return prev;
       const next = [...prev];
-      [next[index], next[index + 1]] = [next[index + 1], next[index]];
+      [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
       return next;
     });
   }
 
-  function removeAt(index: number) {
+  function moveSectionDown(secId: string) {
     hasLocalEditsRef.current = true;
-    setPendingItemIds((prev) => prev.filter((_, i) => i !== index));
+    setPendingSections((prev) => {
+      const idx = prev.findIndex((s) => s.id === secId);
+      if (idx < 0 || idx >= prev.length - 1) return prev;
+      const next = [...prev];
+      [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+      return next;
+    });
+  }
+
+  function toggleSectionExpanded(secId: string) {
+    setExpandedSectionIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(secId)) next.delete(secId);
+      else next.add(secId);
+      return next;
+    });
+  }
+
+  // ── Item ops ──────────────────────────────────────────────────────────
+
+  function moveItemToSection(itemId: string, toSecId: string | null) {
+    const loc = findItemLocation(itemId);
+    if (!loc) return;
+    if (loc.fromSecId === toSecId) return;
+    hasLocalEditsRef.current = true;
+
+    if (loc.fromSecId === null) {
+      setPendingUnassigned((prev) => prev.filter((id) => id !== itemId));
+    } else {
+      const fromId = loc.fromSecId;
+      setPendingSections((prev) =>
+        prev.map((s) =>
+          s.id === fromId
+            ? { ...s, items: s.items.filter((id) => id !== itemId) }
+            : s,
+        ),
+      );
+    }
+
+    if (toSecId === null) {
+      setPendingUnassigned((prev) => [...prev, itemId]);
+    } else {
+      setPendingSections((prev) =>
+        prev.map((s) =>
+          s.id === toSecId ? { ...s, items: [...s.items, itemId] } : s,
+        ),
+      );
+    }
+  }
+
+  function moveItemUp(itemId: string) {
+    const loc = findItemLocation(itemId);
+    if (!loc) return;
+    if (loc.fromIdx <= 0) return;
+    hasLocalEditsRef.current = true;
+    if (loc.fromSecId === null) {
+      setPendingUnassigned((prev) => {
+        const next = [...prev];
+        [next[loc.fromIdx - 1], next[loc.fromIdx]] = [
+          next[loc.fromIdx],
+          next[loc.fromIdx - 1],
+        ];
+        return next;
+      });
+    } else {
+      const secId = loc.fromSecId;
+      setPendingSections((prev) =>
+        prev.map((s) => {
+          if (s.id !== secId) return s;
+          const next = [...s.items];
+          [next[loc.fromIdx - 1], next[loc.fromIdx]] = [
+            next[loc.fromIdx],
+            next[loc.fromIdx - 1],
+          ];
+          return { ...s, items: next };
+        }),
+      );
+    }
+  }
+
+  function moveItemDown(itemId: string) {
+    const loc = findItemLocation(itemId);
+    if (!loc) return;
+    hasLocalEditsRef.current = true;
+    if (loc.fromSecId === null) {
+      setPendingUnassigned((prev) => {
+        if (loc.fromIdx >= prev.length - 1) return prev;
+        const next = [...prev];
+        [next[loc.fromIdx], next[loc.fromIdx + 1]] = [
+          next[loc.fromIdx + 1],
+          next[loc.fromIdx],
+        ];
+        return next;
+      });
+    } else {
+      const secId = loc.fromSecId;
+      setPendingSections((prev) =>
+        prev.map((s) => {
+          if (s.id !== secId) return s;
+          if (loc.fromIdx >= s.items.length - 1) return s;
+          const next = [...s.items];
+          [next[loc.fromIdx], next[loc.fromIdx + 1]] = [
+            next[loc.fromIdx + 1],
+            next[loc.fromIdx],
+          ];
+          return { ...s, items: next };
+        }),
+      );
+    }
+  }
+
+  function removeItem(itemId: string) {
+    const loc = findItemLocation(itemId);
+    if (!loc) return;
+    hasLocalEditsRef.current = true;
+    if (loc.fromSecId === null) {
+      setPendingUnassigned((prev) => prev.filter((id) => id !== itemId));
+    } else {
+      const secId = loc.fromSecId;
+      setPendingSections((prev) =>
+        prev.map((s) =>
+          s.id === secId
+            ? { ...s, items: s.items.filter((id) => id !== itemId) }
+            : s,
+        ),
+      );
+    }
+    // Drop the item's note so we don't leave orphan note entries.
+    setPendingItemNotes((prev) => {
+      if (!(itemId in prev)) return prev;
+      const next = { ...prev };
+      delete next[itemId];
+      return next;
+    });
+  }
+
+  function updateItemNote(itemId: string, newNote: string) {
+    hasLocalEditsRef.current = true;
+    setPendingItemNotes((prev) => {
+      if (newNote === "") {
+        if (!(itemId in prev)) return prev;
+        const next = { ...prev };
+        delete next[itemId];
+        return next;
+      }
+      if (prev[itemId] === newNote) return prev;
+      return { ...prev, [itemId]: newNote };
+    });
   }
 
   function handleAdd(itemId: string) {
-    // Defensive: don't add duplicates even if the dropdown somehow surfaces
-    // an already-in-list item. filteredAvailable already filters; this is
-    // belt-and-suspenders.
-    if (pendingItemIds.includes(itemId)) return;
+    if (allPendingItemIds.has(itemId)) return;
     hasLocalEditsRef.current = true;
-    setPendingItemIds((prev) => [...prev, itemId]);
+    setPendingUnassigned((prev) => [...prev, itemId]);
     setSearchQuery("");
   }
 
@@ -261,7 +744,24 @@ export default function OnboardingTemplatePage() {
     if (unresolvedIds.length === 0) return;
     const missing = new Set(unresolvedIds);
     hasLocalEditsRef.current = true;
-    setPendingItemIds((prev) => prev.filter((id) => !missing.has(id)));
+    setPendingSections((prev) =>
+      prev.map((s) => ({
+        ...s,
+        items: s.items.filter((id) => !missing.has(id)),
+      })),
+    );
+    setPendingUnassigned((prev) => prev.filter((id) => !missing.has(id)));
+    setPendingItemNotes((prev) => {
+      let changed = false;
+      const next: Record<string, string> = { ...prev };
+      for (const id of missing) {
+        if (id in next) {
+          delete next[id];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
     toast.info(
       `Removed ${missing.size} missing item${missing.size === 1 ? "" : "s"} from the template. Click Save to persist.`,
     );
@@ -269,25 +769,40 @@ export default function OnboardingTemplatePage() {
 
   function handleDiscard() {
     if (!templateDoc) return;
+    const norm = normalizeTemplate(templateDoc);
     hasLocalEditsRef.current = false;
-    setPendingItemIds(templateDoc.itemIds);
-    setBaselineItemIds(templateDoc.itemIds);
+    setPendingSections(norm.sections);
+    setPendingUnassigned(norm.unassigned);
+    setPendingItemNotes(norm.itemNotes);
+    setBaselineSnapshot(norm);
     setSearchQuery("");
   }
 
   async function handleSave() {
     if (!logisticsUser || !templateDoc) return;
     if (saving) return;
-    // Snapshot the before/after so the audit event is deterministic even
-    // if state shifts during the await.
-    const beforeIds = [...templateDoc.itemIds];
-    const afterIds = [...pendingItemIds];
+    // Snapshot deterministic values before the await so the audit event
+    // doesn't race with state changes.
+    const beforeNorm = normalizeTemplate(templateDoc);
+    const afterNorm: NormalizedTemplate = {
+      sections: pendingSections,
+      unassigned: pendingUnassigned,
+      itemNotes: pendingItemNotes,
+    };
+    const beforeFlat = flattenItems(beforeNorm);
+    const afterFlat = flattenItems(afterNorm);
 
     setSaving(true);
     try {
       const batch = writeBatch(db);
       batch.set(doc(db, "app_config", "onboarding_template"), {
-        itemIds: afterIds,
+        sections: afterNorm.sections,
+        unassigned: afterNorm.unassigned,
+        itemNotes: afterNorm.itemNotes,
+        // Rollback compat: redundant flat itemIds for code rolling back
+        // before sections existed. Removable in a follow-up commit once
+        // the rollback window has closed.
+        itemIds: afterFlat,
         updatedAt: serverTimestamp(),
         updatedBy: logisticsUser.id,
       });
@@ -296,27 +811,27 @@ export default function OnboardingTemplatePage() {
         actorUid: logisticsUser.id,
         actorName: logisticsUser.name,
         actorRole: logisticsUser.role,
-        action: buildActionText(beforeIds, afterIds),
+        action: buildActionText(beforeNorm, afterNorm),
         templateChange: {
-          before: beforeIds,
-          after: afterIds,
+          before: beforeFlat,
+          after: afterFlat,
+          sectionsBefore: beforeNorm.sections,
+          sectionsAfter: afterNorm.sections,
+          unassignedBefore: beforeNorm.unassigned,
+          unassignedAfter: afterNorm.unassigned,
+          itemNotesBefore: beforeNorm.itemNotes,
+          itemNotesAfter: afterNorm.itemNotes,
         },
       });
       await batch.commit();
-      // Clear the local-edits flag BEFORE the next snapshot fires so the
-      // sync effect correctly aligns pending + baseline with the freshly-
-      // written doc. Also update baseline explicitly here in case the
-      // snapshot arrives slower than this callback.
       hasLocalEditsRef.current = false;
-      setBaselineItemIds(afterIds);
+      setBaselineSnapshot(afterNorm);
       toast.success("Template saved.");
     } catch (err) {
       console.error("[OnboardingTemplatePage] save failed:", err);
       toast.error(
         `Save failed: ${err instanceof Error ? err.message : String(err)}`,
       );
-      // Don't reset hasLocalEditsRef — user's edits are still in pending
-      // and we want the sync effect to continue protecting them.
     } finally {
       setSaving(false);
     }
@@ -383,6 +898,9 @@ export default function OnboardingTemplatePage() {
     );
   }
 
+  const showNoSectionsHint =
+    pendingSections.length === 0 && pendingUnassigned.length > 0;
+
   // ── Page shell ────────────────────────────────────────────────────────
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-4">
@@ -408,8 +926,7 @@ export default function OnboardingTemplatePage() {
       ) : (
         <>
           {/* Race-condition banner — fires only when another admin saved
-              while this admin was mid-edit. Amber so it's distinct from
-              the blue "unsaved changes" banner. */}
+              while this admin was mid-edit. */}
           {isDirty && hasExternalUpdate && (
             <div
               role="status"
@@ -421,13 +938,37 @@ export default function OnboardingTemplatePage() {
             </div>
           )}
 
-          {/* Unsaved changes banner */}
           {isDirty && (
             <div
               role="status"
-              className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900"
+              className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 flex items-center justify-between gap-3"
             >
-              You have unsaved changes. Click "Save changes" to persist them.
+              <span>
+                You have unsaved changes. Click "Save changes" to persist them.
+              </span>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleDiscard}
+                  disabled={saving}
+                  className="px-3 py-1.5 text-sm rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                >
+                  Discard changes
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={saving || unresolvedIds.length > 0}
+                  title={
+                    unresolvedIds.length > 0
+                      ? "Prune missing items before saving"
+                      : undefined
+                  }
+                  className="px-3 py-1.5 text-sm rounded-lg bg-slate-900 text-white font-medium hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {saving ? "Saving…" : "Save changes"}
+                </button>
+              </div>
             </div>
           )}
 
@@ -459,118 +1000,89 @@ export default function OnboardingTemplatePage() {
             </div>
           )}
 
-          {/* List card */}
-          <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
-            <div className="px-4 py-3 border-b border-slate-200 bg-slate-50 flex items-center justify-between gap-3">
-              <div className="text-sm min-w-0">
-                <span className="font-medium text-slate-900">
-                  {resolvedRows.length} items
+          {/* Summary header (counts + last-updated). */}
+          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 flex items-center justify-between gap-3">
+            <div className="text-sm min-w-0">
+              <span className="font-medium text-slate-900">
+                {resolvedItemCount} item{resolvedItemCount === 1 ? "" : "s"}
+              </span>
+              {pendingSections.length > 0 && (
+                <span className="text-slate-500">
+                  {" "}across {pendingSections.length} section
+                  {pendingSections.length === 1 ? "" : "s"}
                 </span>
-                {unresolvedIds.length > 0 && (
-                  <span className="text-slate-500">
-                    {" "}(+{unresolvedIds.length} missing)
-                  </span>
-                )}
-                {templateDoc.updatedAt?.toDate && (
+              )}
+              {unresolvedIds.length > 0 && (
+                <span className="text-slate-500">
+                  {" "}(+{unresolvedIds.length} missing)
+                </span>
+              )}
+              {templateDoc.updatedAt &&
+                typeof templateDoc.updatedAt.toDate === "function" && (
                   <span className="text-xs text-slate-500 ml-3">
                     Last updated{" "}
-                    {templateDoc.updatedAt.toDate().toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                    })}
+                    {templateDoc.updatedAt
+                      .toDate()
+                      .toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
                   </span>
                 )}
-              </div>
-              {isDirty && (
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={handleDiscard}
-                    disabled={saving}
-                    className="px-3 py-1.5 text-sm rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-                  >
-                    Discard changes
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSave}
-                    disabled={saving || unresolvedIds.length > 0}
-                    title={
-                      unresolvedIds.length > 0
-                        ? "Prune missing items before saving"
-                        : undefined
-                    }
-                    className="px-3 py-1.5 text-sm rounded-lg bg-slate-900 text-white font-medium hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    {saving ? "Saving…" : "Save changes"}
-                  </button>
-                </div>
-              )}
             </div>
-
-            {resolvedRows.length === 0 ? (
-              <p className="p-6 text-center text-sm text-slate-400">
-                No resolvable items in this template.
-              </p>
-            ) : (
-              <ul className="divide-y divide-slate-100">
-                {resolvedRows.map(({ itemId, item }, idx) => {
-                  const subtitle = subtitleFromItem(item);
-                  const isFirst = idx === 0;
-                  const isLast = idx === resolvedRows.length - 1;
-                  return (
-                    <li
-                      key={itemId}
-                      className="px-4 py-3 flex items-center gap-3"
-                    >
-                      <span className="text-xs text-slate-400 tabular-nums w-6 shrink-0">
-                        {idx + 1}
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-slate-900 truncate">
-                          {item.name}
-                        </p>
-                        {subtitle && (
-                          <p className="text-xs text-slate-500 truncate mt-0.5">
-                            {subtitle}
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => moveUp(idx)}
-                          disabled={isFirst}
-                          aria-label="Move up"
-                          className="w-8 h-8 inline-flex items-center justify-center rounded text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                        >
-                          <ArrowUp size={16} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => moveDown(idx)}
-                          disabled={isLast}
-                          aria-label="Move down"
-                          className="w-8 h-8 inline-flex items-center justify-center rounded text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                        >
-                          <ArrowDown size={16} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => removeAt(idx)}
-                          aria-label="Remove"
-                          className="w-8 h-8 inline-flex items-center justify-center rounded text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
           </div>
+
+          {/* Sections list */}
+          <div className="space-y-3">
+            {resolvedSections.map(({ section, resolvedItems }, idx) => (
+              <SectionCard
+                key={section.id}
+                section={section}
+                resolvedItems={resolvedItems}
+                isFirst={idx === 0}
+                isLast={idx === resolvedSections.length - 1}
+                allSections={pendingSections}
+                expanded={expandedSectionIds.has(section.id)}
+                autoFocusLabel={pendingFocusSectionId === section.id}
+                onToggleExpanded={() => toggleSectionExpanded(section.id)}
+                onRename={(newLabel) => renameSection(section.id, newLabel)}
+                onUpdateNote={(newNote) =>
+                  updateSectionNote(section.id, newNote)
+                }
+                onDelete={() => deleteSection(section.id)}
+                onMoveSectionUp={() => moveSectionUp(section.id)}
+                onMoveSectionDown={() => moveSectionDown(section.id)}
+                onItemMoveToSection={moveItemToSection}
+                onItemMoveUp={moveItemUp}
+                onItemMoveDown={moveItemDown}
+                onItemRemove={removeItem}
+                onItemNoteChange={updateItemNote}
+              />
+            ))}
+          </div>
+
+          <div>
+            <button
+              type="button"
+              onClick={addSection}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+            >
+              <Plus size={16} />
+              Add section
+            </button>
+          </div>
+
+          <UnassignedSection
+            resolvedItems={resolvedUnassigned}
+            allSections={pendingSections}
+            showNoSectionsHint={showNoSectionsHint}
+            onItemMoveToSection={moveItemToSection}
+            onItemMoveUp={moveItemUp}
+            onItemMoveDown={moveItemDown}
+            onItemRemove={removeItem}
+            onItemNoteChange={updateItemNote}
+          />
 
           {/* Add-item search */}
           <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6">
@@ -579,7 +1091,8 @@ export default function OnboardingTemplatePage() {
             </h2>
             <p className="text-xs text-slate-500 mt-1">
               {availableItems.length} active catalog item
-              {availableItems.length === 1 ? "" : "s"} available to add.
+              {availableItems.length === 1 ? "" : "s"} available to add. New
+              items land in Unassigned.
             </p>
             <input
               type="text"
