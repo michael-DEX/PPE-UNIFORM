@@ -360,6 +360,13 @@ export interface AuditEvent {
     itemNotesBefore?: Record<string, string>;
     itemNotesAfter?: Record<string, string>;
   };
+  /**
+   * For `receive` events, distinguishes whether the stock-in originated
+   * from the OCR-driven packing-slip scanner (`"scan"`), the manual
+   * receive form (`"manual"`), or a single submission that includes
+   * items from both flows (`"mixed"`). Absent on every other event
+   * type. */
+  source?: "scan" | "manual" | "mixed";
 }
 
 // ── Logistics Users ──

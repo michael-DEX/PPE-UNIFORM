@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
-import { ShoppingCart, Package, Plus } from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { ShoppingCart, Package, Plus, PackagePlus } from "lucide-react";
 import { useInventory } from "../../hooks/useInventory";
 import { useDraftSave } from "../../hooks/useDraftSave";
 import { useAuthContext } from "../../app/AuthProvider";
@@ -22,6 +22,7 @@ export default function InventoryPage() {
   const { isManager, logisticsUser } = useAuthContext();
   const { tree: categoryTree } = useCatalogCategories();
   const toast = useToast();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeCategory = searchParams.get("cat") ?? "all";
   const [search, setSearch] = useState("");
@@ -256,6 +257,18 @@ export default function InventoryPage() {
             <p className="text-xs text-gray-400 mt-0.5">{filtered.length} items</p>
           </div>
           <div className="flex items-center gap-1.5 md:gap-2 sm:shrink-0">
+            {/* Receive Stock — manager+admin only; opens the same form
+                as the OCR scan flow but skips the upload stage. */}
+            {isManager && (
+              <button
+                onClick={() => navigate("/logistics/inventory/receive")}
+                className="flex items-center gap-1.5 md:gap-2 px-3 py-2.5 min-h-[44px] rounded-lg text-sm font-medium bg-white text-navy-700 border border-navy-300 hover:bg-navy-50 transition-colors"
+              >
+                <PackagePlus size={18} />
+                <span>Receive Stock</span>
+              </button>
+            )}
+
             {/* New Item (manager+admin only) */}
             {isManager && (
               <button

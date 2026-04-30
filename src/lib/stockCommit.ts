@@ -24,12 +24,16 @@ export interface CommitStockAdjustParams {
   type: StockAdjustType;
   items: StockAdjustItem[];
   notes?: string;
+  /** Origin of a `receive` event — only set for receives. Threads through
+   *  to the audit log so reviewers can distinguish OCR scans, manual
+   *  entry, or a single submission containing both. */
+  source?: "scan" | "manual" | "mixed";
 }
 
 export async function commitStockAdjust(
   params: CommitStockAdjustParams
 ): Promise<string> {
-  const { actor, type, items, notes } = params;
+  const { actor, type, items, notes, source } = params;
   const batch = writeBatch(db);
   const txRef = doc(collection(db, "transactions"));
 
@@ -79,6 +83,7 @@ export async function commitStockAdjust(
     action: `${type === "receive" ? "Received" : "Adjusted"} stock for ${items.length} item(s).`,
     transactionId: txRef.id,
     items: auditItems,
+    source: type === "receive" ? source : undefined,
   });
 
   await batch.commit();

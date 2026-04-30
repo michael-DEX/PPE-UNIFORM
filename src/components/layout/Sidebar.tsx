@@ -15,6 +15,9 @@ import {
   Database,
   ListChecks,
   Tags,
+  Boxes,
+  Truck,
+  Layers,
   X,
 } from "lucide-react";
 import { onSnapshot, query, where, orderBy } from "firebase/firestore";
@@ -49,10 +52,22 @@ export default function Sidebar({ open, onClose, collapsed, onToggleCollapse }: 
   const isOnOnboarding = location.pathname.startsWith("/logistics/onboarding");
   const activeCat = searchParams.get("cat") ?? "all";
   const [expanded, setExpanded] = useState<Set<string>>(new Set(["clothing"]));
+  // Non-admin: gates the legacy Inventory accordion. Admin: gates the new
+  // "Uniforms / PPE" parent inside the LOGISTICS group. Two states because
+  // the two render paths can't share — admin defaults the section
+  // expanded; non-admin defaults to "open if on inventory" to match the
+  // pre-refactor behavior.
   const [inventoryOpen, setInventoryOpen] = useState(isOnInventory);
+  const [uniformsOpen, setUniformsOpen] = useState(true);
 
-  // Auto-expand when navigating to inventory
-  useEffect(() => { if (isOnInventory) setInventoryOpen(true); }, [isOnInventory]);
+  // Auto-expand whichever inventory parent applies when navigating into
+  // /logistics/inventory.
+  useEffect(() => {
+    if (isOnInventory) {
+      setInventoryOpen(true);
+      setUniformsOpen(true);
+    }
+  }, [isOnInventory]);
 
   // Listen for in-progress onboarding drafts
   const [drafts, setDrafts] = useState<OnboardingDraft[]>([]);
@@ -117,7 +132,7 @@ export default function Sidebar({ open, onClose, collapsed, onToggleCollapse }: 
         )}
       </div>
       <nav className="flex-1 py-2 px-2">
-        {/* Dashboard */}
+        {/* Dashboard — top-level for all users */}
         <NavLink
           to="/logistics"
           end
@@ -138,122 +153,300 @@ export default function Sidebar({ open, onClose, collapsed, onToggleCollapse }: 
           )}
         </NavLink>
 
-        {/* Inventory with expandable categories */}
-        <div className="mt-0.5">
-          <div className="flex items-center">
-            <button
-              onClick={() => { selectCategory("all"); setInventoryOpen(true); }}
-              title="Inventory"
-              className={`flex-1 flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${collapsed ? "md:justify-center md:px-2" : ""} ${
-                isOnInventory
-                  ? "bg-blue-50 text-blue-700 font-semibold border-l-2 border-blue-600"
-                  : "text-gray-700 hover:bg-gray-100"
-              }`}
-            >
-              <Package size={18} className={`shrink-0 ${isOnInventory ? "text-blue-600" : "text-gray-500"}`} />
-              <span className={`flex-1 text-left ${collapsed ? "md:hidden" : ""}`}>Inventory</span>
-            </button>
-            <button
-              onClick={() => setInventoryOpen(!inventoryOpen)}
-              className={`p-2 text-gray-400 hover:text-gray-600 transition-colors ${collapsed ? "md:hidden" : ""}`}
-            >
-              {inventoryOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-            </button>
-          </div>
+        {isAdmin ? (
+          /* ── Admin: LOGISTICS grouping ──────────────────────────────────
+             Introduces a parent "LOGISTICS" section header (admin-only)
+             with one functional child ("Uniforms / PPE", containing all
+             current logistics features) plus three placeholder modules
+             (Cache / Vehicles / Load Planning) rendered as greyed,
+             non-clickable items. */
+          <>
+            {!collapsed && (
+              <p className="px-3 mt-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
+                Logistics
+              </p>
+            )}
 
-          {inventoryOpen && !collapsed && (
-            <div className="ml-3 mt-1 space-y-0.5 border-l border-gray-200 pl-2">
-              {/* All Items */}
-              <button
-                onClick={() => selectCategory("all")}
-                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors ${
-                  activeCat === "all"
-                    ? "bg-blue-50 text-blue-700 font-semibold"
-                    : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-                }`}
+            {/* Uniforms / PPE — expandable parent. Click navigates to
+                /logistics/inventory and ensures the child list is open. */}
+            <div className="mt-0.5">
+              <div className="flex items-center">
+                <button
+                  onClick={() => {
+                    selectCategory("all");
+                    setUniformsOpen(true);
+                  }}
+                  title="Uniforms / PPE"
+                  className={`flex-1 flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${collapsed ? "md:justify-center md:px-2" : ""} ${
+                    isOnInventory
+                      ? "bg-blue-50 text-blue-700 font-semibold border-l-2 border-blue-600"
+                      : "text-gray-700 hover:bg-gray-100"
+                  }`}
+                >
+                  <Package size={18} className={`shrink-0 ${isOnInventory ? "text-blue-600" : "text-gray-500"}`} />
+                  <span className={`flex-1 text-left ${collapsed ? "md:hidden" : ""}`}>Uniforms / PPE</span>
+                </button>
+                <button
+                  onClick={() => setUniformsOpen(!uniformsOpen)}
+                  aria-label={uniformsOpen ? "Collapse Uniforms / PPE" : "Expand Uniforms / PPE"}
+                  className={`p-2 text-gray-400 hover:text-gray-600 transition-colors ${collapsed ? "md:hidden" : ""}`}
+                >
+                  {uniformsOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                </button>
+              </div>
+
+              {uniformsOpen && !collapsed && (
+                <div className="ml-3 mt-1 space-y-0.5 border-l border-gray-200 pl-2">
+                  {/* All Items */}
+                  <button
+                    onClick={() => selectCategory("all")}
+                    className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors ${
+                      activeCat === "all" && isOnInventory
+                        ? "bg-blue-50 text-blue-700 font-semibold"
+                        : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                    }`}
+                  >
+                    All Items
+                  </button>
+
+                  {/* Categories tree */}
+                  {categoryTree.map((node) => (
+                    <SidebarCategoryItem
+                      key={node.id}
+                      node={node}
+                      activeCat={activeCat}
+                      onSelect={selectCategory}
+                      expanded={expanded}
+                      toggleExpand={toggleExpand}
+                      depth={0}
+                    />
+                  ))}
+
+                  {/* Personnel — same expand-list visual weight as the
+                      categories above, with the existing onboarding-
+                      draft count badge preserved. */}
+                  <NavLink
+                    to="/logistics/personnel"
+                    title="Personnel"
+                    className={({ isActive }) =>
+                      `w-full flex items-center gap-1.5 px-2 py-1.5 rounded text-xs transition-colors ${
+                        isActive || isOnOnboarding
+                          ? "bg-blue-50 text-blue-700 font-semibold"
+                          : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                      }`
+                    }
+                  >
+                    {({ isActive }) => (
+                      <>
+                        <Users
+                          size={12}
+                          className={`shrink-0 ${isActive || isOnOnboarding ? "text-blue-600" : "text-gray-400"}`}
+                        />
+                        <span className="flex-1 text-left">Personnel</span>
+                        {drafts.length > 0 && (
+                          <span className="bg-amber-100 text-amber-700 text-[10px] font-medium rounded-full px-1.5">
+                            {drafts.length}
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </NavLink>
+
+                  <NavLink
+                    to="/logistics/backorders"
+                    title="Backorders"
+                    className={({ isActive }) =>
+                      `w-full flex items-center gap-1.5 px-2 py-1.5 rounded text-xs transition-colors ${
+                        isActive
+                          ? "bg-blue-50 text-blue-700 font-semibold"
+                          : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                      }`
+                    }
+                  >
+                    {({ isActive }) => (
+                      <>
+                        <Clock size={12} className={`shrink-0 ${isActive ? "text-blue-600" : "text-gray-400"}`} />
+                        <span className="flex-1 text-left">Backorders</span>
+                      </>
+                    )}
+                  </NavLink>
+
+                  <NavLink
+                    to="/logistics/orders"
+                    title="Order Lists"
+                    className={({ isActive }) =>
+                      `w-full flex items-center gap-1.5 px-2 py-1.5 rounded text-xs transition-colors ${
+                        isActive
+                          ? "bg-blue-50 text-blue-700 font-semibold"
+                          : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                      }`
+                    }
+                  >
+                    {({ isActive }) => (
+                      <>
+                        <FileText size={12} className={`shrink-0 ${isActive ? "text-blue-600" : "text-gray-400"}`} />
+                        <span className="flex-1 text-left">Order Lists</span>
+                      </>
+                    )}
+                  </NavLink>
+                </div>
+              )}
+            </div>
+
+            {/* Greyed-out placeholder modules — siblings of Uniforms / PPE
+                under the LOGISTICS header. Not clickable, no hover, no
+                navigation. "Coming soon" tooltip on hover. */}
+            <DisabledNavItem icon={Boxes} label="Cache" collapsed={collapsed} />
+            <DisabledNavItem icon={Truck} label="Vehicles" collapsed={collapsed} />
+            <DisabledNavItem icon={Layers} label="Load Planning" collapsed={collapsed} />
+
+            {/* Audit Log — outside the LOGISTICS group, shared with the
+                non-admin layout. */}
+            <div className="mt-0.5">
+              <NavLink
+                to="/logistics/audit"
+                title="Audit Log"
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${collapsed ? "md:justify-center md:px-2" : ""} ${
+                    isActive
+                      ? "bg-blue-50 text-blue-700 font-semibold border-l-2 border-blue-600"
+                      : "text-gray-700 hover:bg-gray-100"
+                  }`
+                }
               >
-                All Items
-              </button>
+                {({ isActive }) => (
+                  <>
+                    <ClipboardList size={18} className={`shrink-0 ${isActive ? "text-blue-600" : "text-gray-500"}`} />
+                    <span className={collapsed ? "md:hidden" : ""}>Audit Log</span>
+                  </>
+                )}
+              </NavLink>
+            </div>
+          </>
+        ) : (
+          /* ── Non-admin (manager / staff): legacy flat layout ────────────
+             Visually unchanged from the pre-refactor sidebar. The
+             LOGISTICS header and the three placeholder modules are
+             intentionally hidden at these roles per the spec. */
+          <>
+            {/* Inventory with expandable categories */}
+            <div className="mt-0.5">
+              <div className="flex items-center">
+                <button
+                  onClick={() => { selectCategory("all"); setInventoryOpen(true); }}
+                  title="Inventory"
+                  className={`flex-1 flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${collapsed ? "md:justify-center md:px-2" : ""} ${
+                    isOnInventory
+                      ? "bg-blue-50 text-blue-700 font-semibold border-l-2 border-blue-600"
+                      : "text-gray-700 hover:bg-gray-100"
+                  }`}
+                >
+                  <Package size={18} className={`shrink-0 ${isOnInventory ? "text-blue-600" : "text-gray-500"}`} />
+                  <span className={`flex-1 text-left ${collapsed ? "md:hidden" : ""}`}>Inventory</span>
+                </button>
+                <button
+                  onClick={() => setInventoryOpen(!inventoryOpen)}
+                  className={`p-2 text-gray-400 hover:text-gray-600 transition-colors ${collapsed ? "md:hidden" : ""}`}
+                >
+                  {inventoryOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                </button>
+              </div>
 
-              {categoryTree.map((node) => (
-                <SidebarCategoryItem
-                  key={node.id}
-                  node={node}
-                  activeCat={activeCat}
-                  onSelect={selectCategory}
-                  expanded={expanded}
-                  toggleExpand={toggleExpand}
-                  depth={0}
-                />
+              {inventoryOpen && !collapsed && (
+                <div className="ml-3 mt-1 space-y-0.5 border-l border-gray-200 pl-2">
+                  {/* All Items */}
+                  <button
+                    onClick={() => selectCategory("all")}
+                    className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors ${
+                      activeCat === "all"
+                        ? "bg-blue-50 text-blue-700 font-semibold"
+                        : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                    }`}
+                  >
+                    All Items
+                  </button>
+
+                  {categoryTree.map((node) => (
+                    <SidebarCategoryItem
+                      key={node.id}
+                      node={node}
+                      activeCat={activeCat}
+                      onSelect={selectCategory}
+                      expanded={expanded}
+                      toggleExpand={toggleExpand}
+                      depth={0}
+                    />
+                  ))}
+                </div>
+              )}
+              {inventoryOpen && collapsed && (
+                <div className="hidden md:block" />
+              )}
+            </div>
+
+            {/* Personnel — with onboarding drafts indicator */}
+            <div className="mt-0.5">
+              <NavLink
+                to="/logistics/personnel"
+                title="Personnel"
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${collapsed ? "md:justify-center md:px-2" : ""} ${
+                    isActive || isOnOnboarding
+                      ? "bg-blue-50 text-blue-700 font-semibold border-l-2 border-blue-600"
+                      : "text-gray-700 hover:bg-gray-100"
+                  }`
+                }
+              >
+                {({ isActive }) => (
+                  <>
+                    <div className="relative shrink-0">
+                      <Users size={18} className={isActive || isOnOnboarding ? "text-blue-600" : "text-gray-500"} />
+                      {collapsed && drafts.length > 0 && (
+                        <span className="hidden md:block absolute -top-1.5 -right-1.5 bg-amber-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                          {drafts.length}
+                        </span>
+                      )}
+                    </div>
+                    <span className={`flex-1 ${collapsed ? "md:hidden" : ""}`}>Personnel</span>
+                    {drafts.length > 0 && (
+                      <span className={`bg-amber-100 text-amber-700 text-xs font-medium rounded-full px-1.5 py-0.5 ${collapsed ? "md:hidden" : ""}`}>
+                        {drafts.length} onboarding
+                      </span>
+                    )}
+                  </>
+                )}
+              </NavLink>
+            </div>
+
+            {/* Remaining nav items: Backorders, Order Lists, Audit Log */}
+            <div className="mt-0.5 space-y-0.5">
+              {navItems.slice(1).map(({ to, icon: Icon, label, end }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  end={end}
+                  title={label}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${collapsed ? "md:justify-center md:px-2" : ""} ${
+                      isActive
+                        ? "bg-blue-50 text-blue-700 font-semibold border-l-2 border-blue-600"
+                        : "text-gray-700 hover:bg-gray-100"
+                    }`
+                  }
+                >
+                  {({ isActive }) => (
+                    <>
+                      <Icon size={18} className={`shrink-0 ${isActive ? "text-blue-600" : "text-gray-500"}`} />
+                      <span className={collapsed ? "md:hidden" : ""}>{label}</span>
+                    </>
+                  )}
+                </NavLink>
               ))}
             </div>
-          )}
-          {inventoryOpen && collapsed && (
-            <div className="hidden md:block" />
-          )}
-        </div>
+          </>
+        )}
 
-        {/* Personnel — with onboarding drafts indicator */}
-        <div className="mt-0.5">
-          <NavLink
-            to="/logistics/personnel"
-            title="Personnel"
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${collapsed ? "md:justify-center md:px-2" : ""} ${
-                isActive || isOnOnboarding
-                  ? "bg-blue-50 text-blue-700 font-semibold border-l-2 border-blue-600"
-                  : "text-gray-700 hover:bg-gray-100"
-              }`
-            }
-          >
-            {({ isActive }) => (
-              <>
-                <div className="relative shrink-0">
-                  <Users size={18} className={isActive || isOnOnboarding ? "text-blue-600" : "text-gray-500"} />
-                  {collapsed && drafts.length > 0 && (
-                    <span className="hidden md:block absolute -top-1.5 -right-1.5 bg-amber-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
-                      {drafts.length}
-                    </span>
-                  )}
-                </div>
-                <span className={`flex-1 ${collapsed ? "md:hidden" : ""}`}>Personnel</span>
-                {drafts.length > 0 && (
-                  <span className={`bg-amber-100 text-amber-700 text-xs font-medium rounded-full px-1.5 py-0.5 ${collapsed ? "md:hidden" : ""}`}>
-                    {drafts.length} onboarding
-                  </span>
-                )}
-              </>
-            )}
-          </NavLink>
-        </div>
-
-        {/* Remaining nav items: Backorders, Order Lists, Audit Log */}
-        <div className="mt-0.5 space-y-0.5">
-          {navItems.slice(1).map(({ to, icon: Icon, label, end }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={end}
-              title={label}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${collapsed ? "md:justify-center md:px-2" : ""} ${
-                  isActive
-                    ? "bg-blue-50 text-blue-700 font-semibold border-l-2 border-blue-600"
-                    : "text-gray-700 hover:bg-gray-100"
-                }`
-              }
-            >
-              {({ isActive }) => (
-                <>
-                  <Icon size={18} className={`shrink-0 ${isActive ? "text-blue-600" : "text-gray-500"}`} />
-                  <span className={collapsed ? "md:hidden" : ""}>{label}</span>
-                </>
-              )}
-            </NavLink>
-          ))}
-        </div>
-
-        {/* Admin-only section */}
+        {/* Settings — manager+admin (catalog categories) */}
         {isManager && (
           <div className="mt-4 pt-3 border-t border-gray-200 space-y-0.5">
             {!collapsed && (
@@ -362,6 +555,36 @@ export default function Sidebar({ open, onClose, collapsed, onToggleCollapse }: 
         <span className={`hidden ${collapsed ? "md:inline" : ""}`}>US&R</span>
       </div>
     </aside>
+  );
+}
+
+/**
+ * Greyed-out placeholder nav item used for upcoming LOGISTICS modules
+ * (Cache, Vehicles, Load Planning). Not a button — a `<div>` with
+ * `aria-disabled` so screen readers announce the disabled state, no
+ * `onClick`, and `cursor-not-allowed` to hint at the disabled
+ * interaction. The "Coming soon" tooltip surfaces via the `title`
+ * attribute on hover.
+ */
+function DisabledNavItem({
+  icon: Icon,
+  label,
+  collapsed,
+}: {
+  icon: typeof Boxes;
+  label: string;
+  collapsed: boolean;
+}) {
+  return (
+    <div
+      className={`mt-0.5 flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-slate-400 cursor-not-allowed select-none ${collapsed ? "md:justify-center md:px-2" : ""}`}
+      role="presentation"
+      aria-disabled="true"
+      title="Coming soon"
+    >
+      <Icon size={18} className="shrink-0 text-slate-300" />
+      <span className={collapsed ? "md:hidden" : ""}>{label}</span>
+    </div>
   );
 }
 

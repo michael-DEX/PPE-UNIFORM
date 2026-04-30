@@ -56,8 +56,17 @@ export default function App() {
             <Route path="/logistics/print/:transactionId" element={<PrintFormPage />} />
             <Route element={<LogisticsLayout />}>
               <Route path="/logistics" element={<DashboardPage />} />
+              {/* Legacy /scan path redirects to the unified /receive
+                  page so existing nav links and bookmarks keep working;
+                  the scan flow is now an in-page modal action. */}
               <Route
                 path="/logistics/inventory/scan"
+                element={
+                  <Navigate to="/logistics/inventory/receive" replace />
+                }
+              />
+              <Route
+                path="/logistics/inventory/receive"
                 element={
                   <Suspense fallback={<LazyFallback />}>
                     <ScanReceivePage />

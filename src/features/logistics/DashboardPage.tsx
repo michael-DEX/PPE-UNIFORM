@@ -71,7 +71,7 @@ export default function DashboardPage() {
         <QuickAction
           icon={<PackagePlus size={20} />}
           label="Receive"
-          onClick={() => navigate("/logistics/inventory/scan")}
+          onClick={() => navigate("/logistics/inventory/receive")}
           last
         />
       </div>

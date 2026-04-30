@@ -68,6 +68,9 @@ export interface AuditEventInput {
     itemNotesBefore?: Record<string, string>;
     itemNotesAfter?: Record<string, string>;
   };
+  /** "scan" / "manual" / "mixed" for `receive` events — see
+   *  AuditEvent.source. */
+  source?: "scan" | "manual" | "mixed";
 }
 
 /**
