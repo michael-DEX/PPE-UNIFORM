@@ -39,78 +39,6 @@ function validateParseInput(raw) {
         : "image/jpeg";
     return { imageBase64, mimeType: mime };
 }
-// Known item names for matching — these are the items in the CA-TF2 inventory
-const KNOWN_ITEMS = [
-    "Large Roller Bag (90 lbs. MAX)",
-    "24 Hour Pack (35 lbs. MAX)",
-    "Web Gear Bag (40 lbs. MAX)",
-    "Web Gear & Belt Kit",
-    "Cold Weather Bag (40 lbs. MAX)",
-    "American Flag BDU Patch",
-    "CA-TF2 Shoulder Patch",
-    "CA-TF2 Rocker",
-    "CA-TF2 Large Back Patch",
-    "FEMA Shoulder Patch",
-    "CAL OES Patch",
-    "Globe Rescue Boots",
-    "Wide Area Search Boots (Tan)",
-    "Cold Weather Boots",
-    "BDU Top (5.11)",
-    "BDU Top (Tru-Spec)",
-    "BDU Pants (5.11)",
-    "BDU Pants (Tru-Spec)",
-    "BDU Shorts",
-    "Belt",
-    "CA-TF2 Short Sleeve",
-    "CA-TF2 Long Sleeve",
-    "CA-TF2 Polo",
-    "Water Shirt",
-    "Boardshorts",
-    "3-in-1 Parka",
-    "Thermal Top Light Wt.",
-    "Thermal Bottom Light Wt.",
-    "Thermal Top Medium Wt.",
-    "Thermal Bottom Medium Wt.",
-    "Boot Gaiters Pair",
-    "Rain Pants",
-    "USAR Ball Cap",
-    "Boonie Hat",
-    "Beanie",
-    "Head/Neck Gaiter",
-    "Work Gloves",
-    "Cold Weather Work Gloves",
-    "Cold Weather Gloves",
-    "WMD Kit (Scott Mask, Adapters, Bag)",
-    "Respirator Face Piece",
-    "Respirator Cartridge Set",
-    "Flashlight",
-    "Multi-Tool",
-    "Ear Plugs",
-    "Safety Glasses",
-    "Structural Specialist Guide",
-    "Tech Rescue Guide",
-    "USA-02 F.O.G.",
-    "Shoring Guide",
-    "IFAK",
-    "Brief Relief Urinal Bag",
-    "Brief Relief Kit",
-    "MRE",
-    "Insect Repellant",
-    "Sunscreen",
-    "Bath in a Bag Wipes",
-    "Chemlight",
-    "Helmet",
-    "Goggles",
-    "Headlamp",
-    "Magpul Rails",
-    "Vent Covers",
-    "Decals",
-    "Emergency Bivy Sack",
-    "Sleeping Pad",
-    "Sleeping Bag",
-    "Sleeping Bag Girdle",
-    "Pillow",
-];
 async function assertActiveLogisticsUser(uid) {
     const snap = await adminDb.doc(`users/${uid}`).get();
     if (!snap.exists) {
@@ -122,7 +50,37 @@ async function assertActiveLogisticsUser(uid) {
         throw new https_1.HttpsError("permission-denied", "Inactive logistics user");
     }
 }
+// In-memory cache of the active items list, refreshed on first call after
+// the TTL expires. Lives at module scope so it persists across invocations
+// within the same Cloud Functions container — cold-start instances pay the
+// query once, warm instances reuse for up to ITEMS_CACHE_TTL_MS. New items
+// added in the admin UI propagate within that window.
+let itemsCache = null;
+let itemsCacheExpiry = 0;
+const ITEMS_CACHE_TTL_MS = 5 * 60 * 1000;
+async function getKnownItems(db) {
+    const now = Date.now();
+    if (itemsCache && now < itemsCacheExpiry)
+        return itemsCache;
+    const snapshot = await db
+        .collection("items")
+        .where("isActive", "==", true)
+        .get();
+    itemsCache = snapshot.docs
+        .map((doc) => {
+        const data = doc.data();
+        if (!data.name || typeof data.name !== "string")
+            return null;
+        return data.manufacturer
+            ? `${data.manufacturer} ${data.name}`
+            : data.name;
+    })
+        .filter((name) => name !== null);
+    itemsCacheExpiry = now + ITEMS_CACHE_TTL_MS;
+    return itemsCache;
+}
 exports.parsePackingSlip = (0, https_1.onCall)({
+    cors: true,
     secrets: [geminiApiKey],
     maxInstances: 10,
     timeoutSeconds: 60,
@@ -134,6 +92,13 @@ exports.parsePackingSlip = (0, https_1.onCall)({
     }
     await assertActiveLogisticsUser(request.auth.uid);
     const { imageBase64, mimeType: mime } = validateParseInput(request.data);
+    // Live active-items list from Firestore so the matcher tracks the
+    // catalog without redeploys. Cached at module scope (see
+    // `getKnownItems`) so warm instances reuse the result for 5 min.
+    // Format: "Manufacturer Name" when a manufacturer is set, else just
+    // the bare name — extra signal for branded items (e.g. "Florence
+    // Marine X F1 Boardshorts" vs the bare "F1 Boardshorts").
+    const KNOWN_ITEMS = await getKnownItems(adminDb);
     const ai = new genai_1.GoogleGenAI({ apiKey: geminiApiKey.value() });
     const prompt = `You are reading a packing slip, shipping manifest, or delivery receipt for CA-TF2 / USA-02 USAR team equipment.
 

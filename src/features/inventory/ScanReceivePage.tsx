@@ -559,7 +559,7 @@ export default function ScanReceivePage() {
                                 size: e.target.value || null,
                               })
                             }
-                            className="w-full px-2 py-1.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy-500"
+                            className="w-full min-w-[64px] px-2 py-1.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy-500"
                             placeholder="--"
                           />
                         </td>
@@ -575,7 +575,7 @@ export default function ScanReceivePage() {
                                 qty: parseInt(e.target.value) || 0,
                               })
                             }
-                            className="w-full px-2 py-1.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy-500"
+                            className="w-full min-w-[64px] px-2 py-1.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy-500"
                           />
                         </td>
 
