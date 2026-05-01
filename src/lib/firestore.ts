@@ -11,6 +11,8 @@ import type {
   AuditEvent,
   LogisticsUser,
   OnboardingDraft,
+  Cache,
+  Location,
 } from "../types";
 
 // Firestore generates document IDs, so the stored shape omits `id`.
@@ -30,3 +32,5 @@ export const orderListsRef = typedCollection<OrderList>("order_lists");
 export const auditLogRef = typedCollection<AuditEvent>("audit_log");
 export const usersRef = typedCollection<LogisticsUser>("users");
 export const onboardingDraftsRef = typedCollection<OnboardingDraft>("onboarding_drafts");
+export const cachesRef = typedCollection<Cache>("caches");
+export const locationsRef = typedCollection<Location>("locations");

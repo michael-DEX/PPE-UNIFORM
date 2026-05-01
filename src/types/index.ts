@@ -243,6 +243,43 @@ export interface OnboardingTemplateDoc {
   updatedBy?: string;
 }
 
+// ── Caches & Locations (configurable lists for the Cache module) ──
+
+/**
+ * A funding/sponsoring cache (DOS, FEMA, Local, CAL OES, Training, etc.).
+ * Stored as its own Firestore doc rather than a hardcoded enum so admins can
+ * add new caches without a code change. Soft-deleted via `active: false` —
+ * federally funded equipment needs an audit trail, so docs are never
+ * physically removed. `id` is the Firestore doc ID and serves as the stable
+ * foreign key from `boxes.cache` (added in feature #3).
+ */
+export interface Cache {
+  id: string;
+  name: string;
+  description: string;
+  active: boolean;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  createdBy: string;
+  updatedBy: string;
+}
+
+/**
+ * A physical storage location (Warehouse, Offsite Training Facility, etc.).
+ * Same shape and lifecycle as `Cache` — see that comment. `id` is the stable
+ * foreign key from `boxes.location` (added in feature #3).
+ */
+export interface Location {
+  id: string;
+  name: string;
+  description: string;
+  active: boolean;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  createdBy: string;
+  updatedBy: string;
+}
+
 // ── Audit Log ──
 export type AuditEventType =
   | "issue"
@@ -256,7 +293,9 @@ export type AuditEventType =
   | "item_edit"
   | "item_delete"
   | "onboarding_template_edit"
-  | "catalog_categories_edit";
+  | "catalog_categories_edit"
+  | "cache_edit"
+  | "location_edit";
 
 export interface AuditItem {
   itemId: string;

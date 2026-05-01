@@ -293,10 +293,30 @@ export default function Sidebar({ open, onClose, collapsed, onToggleCollapse }: 
               )}
             </div>
 
-            {/* Greyed-out placeholder modules — siblings of Uniforms / PPE
-                under the LOGISTICS header. Not clickable, no hover, no
-                navigation. "Coming soon" tooltip on hover. */}
-            <DisabledNavItem icon={Boxes} label="Cache" collapsed={collapsed} />
+            {/* Cache — wired to the management page. Vehicles and Load
+                Planning remain greyed-out placeholders until those modules
+                exist. Cache is intentionally a flat NavLink (not an
+                expandable group) for now — it's a single management page
+                today; it'll grow into an expandable section once feature #3
+                ships boxes/items as children. */}
+            <NavLink
+              to="/logistics/admin/cache"
+              title="Cache"
+              className={({ isActive }) =>
+                `mt-0.5 flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${collapsed ? "md:justify-center md:px-2" : ""} ${
+                  isActive
+                    ? "bg-blue-50 text-blue-700 font-semibold border-l-2 border-blue-600"
+                    : "text-gray-700 hover:bg-gray-100"
+                }`
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  <Boxes size={18} className={`shrink-0 ${isActive ? "text-blue-600" : "text-gray-500"}`} />
+                  <span className={collapsed ? "md:hidden" : ""}>Cache</span>
+                </>
+              )}
+            </NavLink>
             <DisabledNavItem icon={Truck} label="Vehicles" collapsed={collapsed} />
             <DisabledNavItem icon={Layers} label="Load Planning" collapsed={collapsed} />
 

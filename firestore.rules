@@ -79,5 +79,18 @@ service cloud.firestore {
       allow read: if isLogistics();
       allow write: if isAdmin();
     }
+    // Cache module — configurable lists for funding caches and storage
+    // locations. Read by every logistics user so future Box CRUD (feature
+    // #3) can populate dropdown selectors without an admin role check.
+    // Writes are admin-only — these are the foreign-key targets for boxes
+    // and shouldn't be edited by line staff.
+    match /caches/{cacheId} {
+      allow read: if isLogistics();
+      allow write: if isAdmin();
+    }
+    match /locations/{locationId} {
+      allow read: if isLogistics();
+      allow write: if isAdmin();
+    }
   }
 }

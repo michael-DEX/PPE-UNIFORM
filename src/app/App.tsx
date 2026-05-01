@@ -28,6 +28,7 @@ const SeedPage = lazy(() => import("../features/admin/SeedPage"));
 const UsersPage = lazy(() => import("../features/admin/UsersPage"));
 const OnboardingTemplatePage = lazy(() => import("../features/admin/OnboardingTemplatePage"));
 const CatalogCategoriesPage = lazy(() => import("../features/admin/CatalogCategoriesPage"));
+const CacheManagementPage = lazy(() => import("../features/admin/CacheManagementPage"));
 
 function LazyFallback() {
   return (
@@ -126,6 +127,14 @@ export default function App() {
                 element={
                   <Suspense fallback={<LazyFallback />}>
                     <CatalogCategoriesPage />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/logistics/admin/cache"
+                element={
+                  <Suspense fallback={<LazyFallback />}>
+                    <CacheManagementPage />
                   </Suspense>
                 }
               />

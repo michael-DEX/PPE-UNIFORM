@@ -47,6 +47,8 @@ const TYPE_BADGE_MAP: Record<AuditEventType, { label: string; variant: BadgeVari
   item_delete: { label: "Deleted", variant: "danger" },
   onboarding_template_edit: { label: "Template", variant: "warning" },
   catalog_categories_edit: { label: "Categories", variant: "warning" },
+  cache_edit: { label: "Cache", variant: "warning" },
+  location_edit: { label: "Location", variant: "warning" },
 };
 
 // Fallback for any `type` value not in the map — old probe docs, future
