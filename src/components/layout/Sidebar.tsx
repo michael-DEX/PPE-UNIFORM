@@ -74,6 +74,10 @@ export default function Sidebar({ open, onClose, collapsed, onToggleCollapse }: 
   // pre-refactor behavior.
   const [inventoryOpen, setInventoryOpen] = useState(isOnInventory);
   const [uniformsOpen, setUniformsOpen] = useState(true);
+  // Items (admin layout): collapsed by default since the categories tree
+  // can be long. Auto-opens when the user navigates to inventory so the
+  // active filter is visible.
+  const [itemsOpen, setItemsOpen] = useState(isOnInventory);
 
   // Auto-expand whichever inventory parent applies when navigating into
   // /logistics/inventory.
@@ -81,6 +85,7 @@ export default function Sidebar({ open, onClose, collapsed, onToggleCollapse }: 
     if (isOnInventory) {
       setInventoryOpen(true);
       setUniformsOpen(true);
+      setItemsOpen(true);
     }
   }, [isOnInventory]);
 
@@ -221,21 +226,36 @@ export default function Sidebar({ open, onClose, collapsed, onToggleCollapse }: 
 
               {uniformsOpen && !collapsed && (
                 <div className="ml-3 mt-1 space-y-0.5 border-l border-gray-200 pl-2">
-                  {/* Items — links to the inventory list. Categories
-                      tree below it filters that same list via ?cat=. */}
-                  <button
-                    onClick={() => selectCategory("all")}
-                    className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors ${
-                      activeCat === "all" && isOnInventory
-                        ? "bg-blue-50 text-blue-700 font-semibold"
-                        : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-                    }`}
-                  >
-                    Items
-                  </button>
+                  {/* Items — collapsible. Clicking the label navigates
+                      to the inventory list (unfiltered) and opens the
+                      tree. The chevron alone toggles expand/collapse
+                      without navigating, mirroring the Uniforms / PPE
+                      parent above. */}
+                  <div className="flex items-center">
+                    <button
+                      onClick={() => {
+                        selectCategory("all");
+                        setItemsOpen(true);
+                      }}
+                      className={`flex-1 flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors ${
+                        activeCat === "all" && isOnInventory
+                          ? "bg-blue-50 text-blue-700 font-semibold"
+                          : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                      }`}
+                    >
+                      <span className="flex-1 text-left">Items</span>
+                    </button>
+                    <button
+                      onClick={() => setItemsOpen(!itemsOpen)}
+                      aria-label={itemsOpen ? "Collapse Items" : "Expand Items"}
+                      className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
+                    >
+                      {itemsOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                    </button>
+                  </div>
 
-                  {/* Categories tree */}
-                  {categoryTree.map((node) => (
+                  {/* Categories tree — hidden until Items is expanded. */}
+                  {itemsOpen && categoryTree.map((node) => (
                     <SidebarCategoryItem
                       key={node.id}
                       node={node}
