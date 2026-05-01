@@ -27,9 +27,9 @@ import { useAuthContext } from "../../app/AuthProvider";
 import { useCatalogCategories } from "../../hooks/useCatalogCategories";
 import type { OnboardingDraft } from "../../types";
 
+// Used only by the legacy non-admin (manager / staff) layout. The admin
+// layout renders these inline inside the LOGISTICS group instead.
 const navItems = [
-  { to: "/logistics", icon: LayoutDashboard, label: "Dashboard", end: true },
-  // Personnel is rendered separately with onboarding draft indicators
   { to: "/logistics/backorders", icon: Clock, label: "Backorders" },
   { to: "/logistics/orders", icon: FileText, label: "Order Lists" },
   { to: "/logistics/audit", icon: ClipboardList, label: "Audit Log" },
@@ -49,6 +49,21 @@ export default function Sidebar({ open, onClose, collapsed, onToggleCollapse }: 
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const isOnInventory = location.pathname.startsWith("/logistics/inventory");
+  const isOnUniformsDashboard = location.pathname === "/logistics/uniforms";
+  // Parent "Uniforms / PPE" highlights when the user is anywhere inside
+  // that module's pages (dashboard, items, personnel, etc.). Cache,
+  // Vehicles, Audit Log, and the global Admin section are excluded —
+  // they're peers, not children of Uniforms / PPE.
+  const isOnUniformsModule =
+    isOnInventory ||
+    isOnUniformsDashboard ||
+    location.pathname.startsWith("/logistics/personnel") ||
+    location.pathname.startsWith("/logistics/onboarding") ||
+    location.pathname.startsWith("/logistics/backorders") ||
+    location.pathname.startsWith("/logistics/orders") ||
+    location.pathname.startsWith("/logistics/admin/categories") ||
+    location.pathname.startsWith("/logistics/admin/seed") ||
+    location.pathname.startsWith("/logistics/admin/onboarding-template");
   const isOnOnboarding = location.pathname.startsWith("/logistics/onboarding");
   const activeCat = searchParams.get("cat") ?? "all";
   const [expanded, setExpanded] = useState<Set<string>>(new Set(["clothing"]));
@@ -132,26 +147,32 @@ export default function Sidebar({ open, onClose, collapsed, onToggleCollapse }: 
         )}
       </div>
       <nav className="flex-1 py-2 px-2">
-        {/* Dashboard — top-level for all users */}
-        <NavLink
-          to="/logistics"
-          end
-          title="Dashboard"
-          className={({ isActive }) =>
-            `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${collapsed ? "md:justify-center md:px-2" : ""} ${
-              isActive
-                ? "bg-blue-50 text-blue-700 font-semibold border-l-2 border-blue-600"
-                : "text-gray-700 hover:bg-gray-100"
-            }`
-          }
-        >
-          {({ isActive }) => (
-            <>
-              <LayoutDashboard size={18} className={`shrink-0 ${isActive ? "text-blue-600" : "text-gray-500"}`} />
-              <span className={collapsed ? "md:hidden" : ""}>Dashboard</span>
-            </>
-          )}
-        </NavLink>
+        {/* Top-level Dashboard — kept for non-admins (manager / staff)
+            who use the legacy flat layout. Admins reach the same page
+            (PPE-specific dashboard) via the Uniforms / PPE parent in
+            the LOGISTICS group below, so the redundant top-level link
+            is hidden for them. */}
+        {!isAdmin && (
+          <NavLink
+            to="/logistics/uniforms"
+            end
+            title="Dashboard"
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${collapsed ? "md:justify-center md:px-2" : ""} ${
+                isActive
+                  ? "bg-blue-50 text-blue-700 font-semibold border-l-2 border-blue-600"
+                  : "text-gray-700 hover:bg-gray-100"
+              }`
+            }
+          >
+            {({ isActive }) => (
+              <>
+                <LayoutDashboard size={18} className={`shrink-0 ${isActive ? "text-blue-600" : "text-gray-500"}`} />
+                <span className={collapsed ? "md:hidden" : ""}>Dashboard</span>
+              </>
+            )}
+          </NavLink>
+        )}
 
         {isAdmin ? (
           /* ── Admin: LOGISTICS grouping ──────────────────────────────────
@@ -168,22 +189,25 @@ export default function Sidebar({ open, onClose, collapsed, onToggleCollapse }: 
             )}
 
             {/* Uniforms / PPE — expandable parent. Click navigates to
-                /logistics/inventory and ensures the child list is open. */}
+                the PPE-specific dashboard at /logistics/uniforms; the
+                dropdown contains every page that's part of this module
+                plus an admin-only "PPE Settings" sub-section so all
+                Uniforms / PPE controls live in one place. */}
             <div className="mt-0.5">
               <div className="flex items-center">
                 <button
                   onClick={() => {
-                    selectCategory("all");
+                    navigate("/logistics/uniforms");
                     setUniformsOpen(true);
                   }}
                   title="Uniforms / PPE"
                   className={`flex-1 flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${collapsed ? "md:justify-center md:px-2" : ""} ${
-                    isOnInventory
+                    isOnUniformsModule
                       ? "bg-blue-50 text-blue-700 font-semibold border-l-2 border-blue-600"
                       : "text-gray-700 hover:bg-gray-100"
                   }`}
                 >
-                  <Package size={18} className={`shrink-0 ${isOnInventory ? "text-blue-600" : "text-gray-500"}`} />
+                  <Package size={18} className={`shrink-0 ${isOnUniformsModule ? "text-blue-600" : "text-gray-500"}`} />
                   <span className={`flex-1 text-left ${collapsed ? "md:hidden" : ""}`}>Uniforms / PPE</span>
                 </button>
                 <button
@@ -197,7 +221,8 @@ export default function Sidebar({ open, onClose, collapsed, onToggleCollapse }: 
 
               {uniformsOpen && !collapsed && (
                 <div className="ml-3 mt-1 space-y-0.5 border-l border-gray-200 pl-2">
-                  {/* All Items */}
+                  {/* Items — links to the inventory list. Categories
+                      tree below it filters that same list via ?cat=. */}
                   <button
                     onClick={() => selectCategory("all")}
                     className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors ${
@@ -206,7 +231,7 @@ export default function Sidebar({ open, onClose, collapsed, onToggleCollapse }: 
                         : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
                     }`}
                   >
-                    All Items
+                    Items
                   </button>
 
                   {/* Categories tree */}
@@ -221,36 +246,6 @@ export default function Sidebar({ open, onClose, collapsed, onToggleCollapse }: 
                       depth={0}
                     />
                   ))}
-
-                  {/* Personnel — same expand-list visual weight as the
-                      categories above, with the existing onboarding-
-                      draft count badge preserved. */}
-                  <NavLink
-                    to="/logistics/personnel"
-                    title="Personnel"
-                    className={({ isActive }) =>
-                      `w-full flex items-center gap-1.5 px-2 py-1.5 rounded text-xs transition-colors ${
-                        isActive || isOnOnboarding
-                          ? "bg-blue-50 text-blue-700 font-semibold"
-                          : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-                      }`
-                    }
-                  >
-                    {({ isActive }) => (
-                      <>
-                        <Users
-                          size={12}
-                          className={`shrink-0 ${isActive || isOnOnboarding ? "text-blue-600" : "text-gray-400"}`}
-                        />
-                        <span className="flex-1 text-left">Personnel</span>
-                        {drafts.length > 0 && (
-                          <span className="bg-amber-100 text-amber-700 text-[10px] font-medium rounded-full px-1.5">
-                            {drafts.length}
-                          </span>
-                        )}
-                      </>
-                    )}
-                  </NavLink>
 
                   <NavLink
                     to="/logistics/backorders"
@@ -289,6 +284,98 @@ export default function Sidebar({ open, onClose, collapsed, onToggleCollapse }: 
                       </>
                     )}
                   </NavLink>
+
+                  <NavLink
+                    to="/logistics/personnel"
+                    title="Personnel"
+                    className={({ isActive }) =>
+                      `w-full flex items-center gap-1.5 px-2 py-1.5 rounded text-xs transition-colors ${
+                        isActive || isOnOnboarding
+                          ? "bg-blue-50 text-blue-700 font-semibold"
+                          : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                      }`
+                    }
+                  >
+                    {({ isActive }) => (
+                      <>
+                        <Users
+                          size={12}
+                          className={`shrink-0 ${isActive || isOnOnboarding ? "text-blue-600" : "text-gray-400"}`}
+                        />
+                        <span className="flex-1 text-left">Personnel</span>
+                        {drafts.length > 0 && (
+                          <span className="bg-amber-100 text-amber-700 text-[10px] font-medium rounded-full px-1.5">
+                            {drafts.length}
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </NavLink>
+
+                  {/* PPE Settings — admin-only sub-section inside the
+                      dropdown. Categories live here (manager+ in the
+                      Firestore rules; the link is admin-only here
+                      because non-admin managers use the legacy
+                      sidebar layout that has its own Settings entry). */}
+                  <div className="mt-3 pt-2 border-t border-gray-200">
+                    <p className="px-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
+                      PPE Settings
+                    </p>
+                    <NavLink
+                      to="/logistics/admin/categories"
+                      title="Categories"
+                      className={({ isActive }) =>
+                        `w-full flex items-center gap-1.5 px-2 py-1.5 rounded text-xs transition-colors ${
+                          isActive
+                            ? "bg-blue-50 text-blue-700 font-semibold"
+                            : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                        }`
+                      }
+                    >
+                      {({ isActive }) => (
+                        <>
+                          <Tags size={12} className={`shrink-0 ${isActive ? "text-blue-600" : "text-gray-400"}`} />
+                          <span className="flex-1 text-left">Categories</span>
+                        </>
+                      )}
+                    </NavLink>
+                    <NavLink
+                      to="/logistics/admin/seed"
+                      title="Seed Items"
+                      className={({ isActive }) =>
+                        `w-full flex items-center gap-1.5 px-2 py-1.5 rounded text-xs transition-colors ${
+                          isActive
+                            ? "bg-blue-50 text-blue-700 font-semibold"
+                            : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                        }`
+                      }
+                    >
+                      {({ isActive }) => (
+                        <>
+                          <Database size={12} className={`shrink-0 ${isActive ? "text-blue-600" : "text-gray-400"}`} />
+                          <span className="flex-1 text-left">Seed Items</span>
+                        </>
+                      )}
+                    </NavLink>
+                    <NavLink
+                      to="/logistics/admin/onboarding-template"
+                      title="Onboarding Template"
+                      className={({ isActive }) =>
+                        `w-full flex items-center gap-1.5 px-2 py-1.5 rounded text-xs transition-colors ${
+                          isActive
+                            ? "bg-blue-50 text-blue-700 font-semibold"
+                            : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                        }`
+                      }
+                    >
+                      {({ isActive }) => (
+                        <>
+                          <ListChecks size={12} className={`shrink-0 ${isActive ? "text-blue-600" : "text-gray-400"}`} />
+                          <span className="flex-1 text-left">Onboarding Template</span>
+                        </>
+                      )}
+                    </NavLink>
+                  </div>
                 </div>
               )}
             </div>
@@ -466,8 +553,10 @@ export default function Sidebar({ open, onClose, collapsed, onToggleCollapse }: 
           </>
         )}
 
-        {/* Settings — manager+admin (catalog categories) */}
-        {isManager && (
+        {/* Settings — only shown for non-admin managers, who use the
+            legacy flat layout and don't get the PPE Settings sub-section
+            inside Uniforms / PPE. Admins reach Categories from there. */}
+        {isManager && !isAdmin && (
           <div className="mt-4 pt-3 border-t border-gray-200 space-y-0.5">
             {!collapsed && (
               <p className="px-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
@@ -495,7 +584,10 @@ export default function Sidebar({ open, onClose, collapsed, onToggleCollapse }: 
           </div>
         )}
 
-        {/* Admin-only section */}
+        {/* Admin section — slim. Cross-module-only concerns live here;
+            Seed Items and the Onboarding Template moved into the
+            Uniforms / PPE dropdown's "PPE Settings" sub-section
+            because they're PPE-specific. */}
         {isAdmin && (
           <div className="mt-4 pt-3 border-t border-gray-200 space-y-0.5">
             {!collapsed && (
@@ -518,42 +610,6 @@ export default function Sidebar({ open, onClose, collapsed, onToggleCollapse }: 
                 <>
                   <Shield size={18} className={`shrink-0 ${isActive ? "text-blue-600" : "text-gray-500"}`} />
                   <span className={collapsed ? "md:hidden" : ""}>Users</span>
-                </>
-              )}
-            </NavLink>
-            <NavLink
-              to="/logistics/admin/seed"
-              title="Seed Items"
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${collapsed ? "md:justify-center md:px-2" : ""} ${
-                  isActive
-                    ? "bg-blue-50 text-blue-700 font-semibold border-l-2 border-blue-600"
-                    : "text-gray-700 hover:bg-gray-100"
-                }`
-              }
-            >
-              {({ isActive }) => (
-                <>
-                  <Database size={18} className={`shrink-0 ${isActive ? "text-blue-600" : "text-gray-500"}`} />
-                  <span className={collapsed ? "md:hidden" : ""}>Seed Items</span>
-                </>
-              )}
-            </NavLink>
-            <NavLink
-              to="/logistics/admin/onboarding-template"
-              title="Onboarding Template"
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${collapsed ? "md:justify-center md:px-2" : ""} ${
-                  isActive
-                    ? "bg-blue-50 text-blue-700 font-semibold border-l-2 border-blue-600"
-                    : "text-gray-700 hover:bg-gray-100"
-                }`
-              }
-            >
-              {({ isActive }) => (
-                <>
-                  <ListChecks size={18} className={`shrink-0 ${isActive ? "text-blue-600" : "text-gray-500"}`} />
-                  <span className={collapsed ? "md:hidden" : ""}>Onboarding Template</span>
                 </>
               )}
             </NavLink>

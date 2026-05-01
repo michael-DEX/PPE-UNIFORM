@@ -19,7 +19,7 @@ export default function LoginPage() {
   // Redirect if already logged in
   useEffect(() => {
     if (!user) return;
-    navigate(user && isLogistics ? "/logistics" : "/store", { replace: true });
+    navigate(user && isLogistics ? "/logistics/uniforms" : "/store", { replace: true });
   }, [user, isLogistics, navigate]);
 
   if (user) return null;
@@ -30,7 +30,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await signIn(email, password);
-      navigate("/logistics");
+      navigate("/logistics/uniforms");
     } catch (err: unknown) {
       const code =
         err && typeof err === "object" && "code" in err
