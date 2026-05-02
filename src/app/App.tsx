@@ -56,7 +56,13 @@ export default function App() {
           <Route element={<LogisticsGuard />}>
             <Route path="/logistics/print/:transactionId" element={<PrintFormPage />} />
             <Route element={<LogisticsLayout />}>
-              <Route path="/logistics" element={<DashboardPage />} />
+              {/* `/logistics` no longer renders a top-level dashboard —
+                  the existing dashboard is PPE-specific (low-stock counts,
+                  recent transactions, onboarding drafts) and now lives
+                  under the Uniforms / PPE module. Old bookmarks redirect
+                  through; new code links to `/logistics/uniforms`. */}
+              <Route path="/logistics" element={<Navigate to="/logistics/uniforms" replace />} />
+              <Route path="/logistics/uniforms" element={<DashboardPage />} />
               {/* Legacy /scan path redirects to the unified /receive
                   page so existing nav links and bookmarks keep working;
                   the scan flow is now an in-page modal action. */}

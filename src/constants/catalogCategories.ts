@@ -47,7 +47,7 @@ export const CATALOG_TREE: CategoryNode[] = [
   },
   {
     id: "sleep-system",
-    label: "Sleep System",
+    label: "Sleeping Kit",
     icon: "Moon",
   },
   {
